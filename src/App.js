@@ -184,6 +184,9 @@ const App = () => {
             <h2>Create New Quiz</h2>
             <form onSubmit={handleCreateQuiz}>
               <input type="text" name="title" placeholder="Quiz Title" required />
+              <input type="text" name="logoUrl" placeholder="Logo Url" required />
+              <input type="text" name="coverUrl" placeholder="Cover Image Url" required />
+              <input type="text" name="description" placeholder="Description" required />
               <input type="number" name="questionCount" placeholder="Number of Questions" required />
               <input type="date" name="startDate" placeholder="Start Date" required />
               <input type="number" name="duration" placeholder="Duration (in seconds)" required />
@@ -336,30 +339,31 @@ const App = () => {
 
   return (
     <div className="app">
-      {!isWalletConnected ? (
-        <div className="username-section">
-          <form onSubmit={handleUsernameSubmit}>
-            <input type="text" name="username" placeholder="Enter your username" required />
-            <button type="submit">Connect Wallet</button>
-          </form>
-        </div>
-      ) : (
         <>
           <div className="sidebar">
             <div className="logo-container">
               <img src={logo} alt="Logo" className="logo" />
             </div>
             <ul className="menu">
-              <li onClick={() => setSelectedMenu("createQuiz")}>Create Quiz</li>
+              <li onClick={() => setSelectedMenu("homePage")}>Homepage</li>
               <li onClick={() => setSelectedMenu("joinQuizzes")}>Join Quizzes</li>
               <li onClick={() => setSelectedMenu("completedQuizzes")}>Completed Quizzes</li>
               <li onClick={() => setSelectedMenu("leaderboard")}>Leaderboard</li>
+              <li onClick={() => setSelectedMenu("help")}>Help</li>
             </ul>
-            <p>Connected Account: {account}</p>
+
+            <ul className="menu">
+              <li onClick={() => setSelectedMenu("createQuiz")}>Create Quiz</li>
+              <p>Connected Account: {account}</p>
             <p>Username: {username}</p> {/* Kullanıcı adı burada gösteriliyor */}
             <button className="disconnect-button" onClick={handleWalletDisconnect}>
               Disconnect Wallet
             </button>
+
+
+            </ul>
+            
+            
           </div>
           <div className="content">{renderContent()}</div>
           <div className="upcoming-quizzes">
@@ -373,7 +377,6 @@ const App = () => {
             </ul>
           </div>
         </>
-      )}
     </div>
   );
 };
