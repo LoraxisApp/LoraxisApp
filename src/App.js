@@ -5,7 +5,7 @@ import logo from './assets/lrx.png';
 
 const App = () => {
   const [isWalletConnected, setIsWalletConnected] = useState(false);
-  const [selectedMenu, setSelectedMenu] = useState("createQuiz");
+  const [selectedMenu, setSelectedMenu] = useState("homePage");
   const [account, setAccount] = useState(null);
   const [username, setUsername] = useState("");
   const [web3, setWeb3] = useState(null);
