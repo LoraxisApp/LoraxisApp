@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import Web3 from "web3";
 import "./App.css";
 import logo from './assets/lrx.png'; 
+import getContract, { getSignerContract } from './contract';
 
 const App = () => {
   const [isWalletConnected, setIsWalletConnected] = useState(false);
@@ -17,6 +18,7 @@ const App = () => {
   const [userAnswers, setUserAnswers] = useState([]);
   const [score, setScore] = useState(null);
   const [leaderboard, setLeaderboard] = useState([]);
+  const [upcomingQuizzes, setUpcomingQuizzes] = useState([]); // State to store upcoming quizzes
 
   useEffect(() => {
     if (window.ethereum) {
@@ -52,28 +54,76 @@ const App = () => {
     }
   };
 
-  const handleCreateQuiz = (e) => {
-    e.preventDefault();
-    const quizTitle = e.target.title.value;
-    const questionCount = parseInt(e.target.questionCount.value);
-    const startDate = new Date().getTime(); 
-    const duration = parseInt(e.target.duration.value) * 1000; 
-
-    if (quizTitle && questionCount && duration) {
-      const newQuiz = {
-        title: quizTitle,
-        questionCount,
-        startDate,
-        duration,
-        questions: [],
-        answers: [],
-        isCompleted: false,
-      };
-      setCurrentQuiz(newQuiz);
-      setQuestions(Array.from({ length: questionCount }, () => ({ question: "", options: ["", "", "", ""] })));
-      setAnswers(Array(questionCount).fill(""));
+  const fetchUpcomingQuizzes = async () => {
+    try {
+      const contract = await getContract();
+      const upcoming = await contract.getUpcomingQuizzes(); // Call the smart contract function
+  
+      // Create a copy of the array using map or spread operator to avoid modifying the read-only array
+      const upcomingCopy = [...upcoming]; // or: upcoming.map(quiz => ({ ...quiz }));
+  
+      // Sort the copied quizzes array based on startDate (converted to a Number)
+      const sortedUpcoming = upcomingCopy.sort((a, b) => Number(a.startDate) - Number(b.startDate));
+  
+      setUpcomingQuizzes(sortedUpcoming); // Store the sorted quizzes in the state
+    } catch (error) {
+      console.error("Error fetching upcoming quizzes:", error);
     }
   };
+  
+
+  useEffect(() => {
+    fetchUpcomingQuizzes(); // Fetch upcoming quizzes on component mount
+  }, []);
+
+  const handleCreateQuiz = async (e) => {
+    e.preventDefault();
+    const quizTitle = e.target.title.value;
+    const logoUrl = e.target.logoUrl.value;
+    const coverUrl = e.target.coverUrl.value;
+    const description = e.target.description.value;
+    const questionCount = parseInt(e.target.questionCount.value);
+    const startDateTime = new Date(e.target.startDateTime.value).getTime(); // Get the datetime in milliseconds
+    const duration = parseInt(e.target.duration.value) * 1000; // Convert to milliseconds
+  
+
+
+
+      try {
+   
+        const contract = await getSignerContract();
+        const tx = await contract.createQuiz(quizTitle, logoUrl, coverUrl, description, questionCount, startDateTime, duration);
+        await tx.wait();
+      } catch (error) {
+        console.error(error);
+      }
+
+
+
+
+
+
+  };
+
+
+
+  const renderUpcomingQuizzes = () => {
+    if (upcomingQuizzes.length === 0) {
+      return <p>No upcoming quizzes available.</p>;
+    }
+  
+    return upcomingQuizzes.map((quiz, index) => (
+      <li key={index}>
+        <h3>{quiz.title}
+        {/* Convert BigInt quiz.startDate to number before subtracting */}
+        ------------
+        {(Math.floor((Number(quiz.startDate) - new Date().getTime()) / 1000) / 3600).toFixed(1)} hours later
+        </h3>
+      </li>
+    ));
+  };
+  
+  
 
   const handleAddQuestion = (index, e) => {
     const { name, value } = e.target;
@@ -182,16 +232,26 @@ const App = () => {
         return (
           <div>
             <h2>Create New Quiz</h2>
+         
+
+
             <form onSubmit={handleCreateQuiz}>
-              <input type="text" name="title" placeholder="Quiz Title" required />
-              <input type="text" name="logoUrl" placeholder="Logo Url" required />
-              <input type="text" name="coverUrl" placeholder="Cover Image Url" required />
-              <input type="text" name="description" placeholder="Description" required />
-              <input type="number" name="questionCount" placeholder="Number of Questions" required />
-              <input type="date" name="startDate" placeholder="Start Date" required />
-              <input type="number" name="duration" placeholder="Duration (in seconds)" required />
-              <button type="submit">Create Quiz</button>
-            </form>
+  <input type="text" name="title" placeholder="Quiz Title" required />
+  <input type="text" name="logoUrl" placeholder="Logo Url" required />
+  <input type="text" name="coverUrl" placeholder="Cover Image Url" required />
+  <input type="text" name="description" placeholder="Description" required />
+  <input type="number" name="questionCount" placeholder="Number of Questions" required />
+  
+  {/* Change this input to datetime-local */}
+  <input type="datetime-local" name="startDateTime" placeholder="Start Date and Time" required />
+  
+  <input type="number" name="duration" placeholder="Duration (in seconds)" required />
+  <button type="submit">Create Quiz</button>
+</form>
+
+
+
+
 
             {currentQuiz && (
               <div className="add-questions-section">
@@ -368,13 +428,7 @@ const App = () => {
           <div className="content">{renderContent()}</div>
           <div className="upcoming-quizzes">
             <h2>Upcoming Quizzes</h2>
-            <ul>
-              {quizzes.map((quiz, index) => (
-                <li key={index} onClick={() => handleJoinQuiz(index)}>
-                  {quiz.title} - Time left: {calculateTimeRemaining(quiz)}s
-                </li>
-              ))}
-            </ul>
+            <ul>{renderUpcomingQuizzes()}</ul>
           </div>
         </>
     </div>
