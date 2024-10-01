@@ -3,6 +3,8 @@ import Web3 from "web3";
 import "./App.css";
 import logo from './assets/lrx.png'; 
 import getContract, { getSignerContract } from './contract';
+import '@fortawesome/fontawesome-free/css/all.min.css';
+
 
 const App = () => {
   const [isWalletConnected, setIsWalletConnected] = useState(false);
@@ -23,10 +25,20 @@ const App = () => {
   useEffect(() => {
     if (window.ethereum) {
       setWeb3(new Web3(window.ethereum));
+  
+      // Check if the wallet was connected before
+      const connected = localStorage.getItem("isWalletConnected");
+      const storedAccount = localStorage.getItem("account");
+  
+      if (connected === "true" && storedAccount) {
+        setAccount(storedAccount);
+        setIsWalletConnected(true);
+      }
     } else {
       alert("Please install MetaMask to use this application.");
     }
   }, []);
+  
 
   const handleWalletConnect = async (e) => {
     e.preventDefault();
@@ -34,16 +46,32 @@ const App = () => {
       const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
       setAccount(accounts[0]);
       setIsWalletConnected(true);
+  
+      // Store account and connection status in localStorage
+      localStorage.setItem("isWalletConnected", "true");
+      localStorage.setItem("account", accounts[0]);
     } catch (error) {
       console.error("Cüzdan bağlantı hatası:", error);
     }
   };
+  
+
+  const formatAddress = (address) => {
+    if (!address) return "";
+    return `${address.slice(0, 4)}...${address.slice(-3)}`;
+  };
+  
 
   const handleWalletDisconnect = () => {
     setAccount(null);
     setIsWalletConnected(false);
-    setUsername(""); 
+    setUsername("");
+  
+    // Remove wallet connection status from localStorage
+    localStorage.removeItem("isWalletConnected");
+    localStorage.removeItem("account");
   };
+  
 
   const handleUsernameSubmit = (e) => {
     e.preventDefault();
@@ -405,23 +433,76 @@ const App = () => {
               <img src={logo} alt="Logo" className="logo" />
             </div>
             <ul className="menu">
-              <li onClick={() => setSelectedMenu("homePage")}>Homepage</li>
-              <li onClick={() => setSelectedMenu("joinQuizzes")}>Join Quizzes</li>
-              <li onClick={() => setSelectedMenu("completedQuizzes")}>Completed Quizzes</li>
-              <li onClick={() => setSelectedMenu("leaderboard")}>Leaderboard</li>
-              <li onClick={() => setSelectedMenu("help")}>Help</li>
-            </ul>
+  <li
+    className={selectedMenu === "homePage" ? "gradient-active" : ""}
+    onClick={() => setSelectedMenu("homePage")}
+  >
+    <i className="fas fa-home"></i> Homepage
+    <i className="fas fa-angle-right right-arrow"></i> {/* Add the arrow */}
+  </li>
+  <li
+    className={selectedMenu === "joinQuizzes" ? "gradient-active" : ""}
+    onClick={() => setSelectedMenu("joinQuizzes")}
+  >
+    <i className="fas fa-edit"></i> Join Quizzes
+    <i className="fas fa-angle-right right-arrow"></i>
+  </li>
+  <li
+    className={selectedMenu === "completedQuizzes" ? "gradient-active" : ""}
+    onClick={() => setSelectedMenu("completedQuizzes")}
+  >
+    <i className="fas fa-check-circle"></i> Completed Quizzes
+    <i className="fas fa-angle-right right-arrow"></i>
+  </li>
+  <li
+    className={selectedMenu === "leaderboard" ? "gradient-active" : ""}
+    onClick={() => setSelectedMenu("leaderboard")}
+  >
+    <i className="fas fa-trophy"></i> Leaderboard
+    <i className="fas fa-angle-right right-arrow"></i>
+  </li>
+  <li
+    className={selectedMenu === "help" ? "gradient-active" : ""}
+    onClick={() => setSelectedMenu("help")}
+  >
+    <i className="fas fa-question-circle"></i> Help
+    <i className="fas fa-angle-right right-arrow"></i>
+  </li>
+</ul>
 
-            <ul className="menu">
-              <li onClick={() => setSelectedMenu("createQuiz")}>Create Quiz</li>
-              <p>Connected Account: {account}</p>
-            <p>Username: {username}</p> {/* Kullanıcı adı burada gösteriliyor */}
-            <button className="disconnect-button" onClick={handleWalletDisconnect}>
-              Disconnect Wallet
-            </button>
 
 
-            </ul>
+
+<ul className="menu">
+  <li
+    className={selectedMenu === "createQuiz" ? "gradient-active" : ""}
+    onClick={() => setSelectedMenu("createQuiz")}
+  >
+    Create Quiz
+    <i className="fas fa-angle-right right-arrow"></i>
+  </li>
+
+  {!isWalletConnected && (
+    <li
+      className={selectedMenu === "login" ? "gradient-active" : ""}
+      onClick={handleWalletConnect}
+    >
+      <i className="fas fa-sign-in-alt"></i> Login
+      <i className="fas fa-angle-right right-arrow"></i>
+    </li>
+  )}
+
+  {isWalletConnected && (
+    <>
+      <li>
+        <p>Active Wallet Address: {formatAddress(account)}</p>
+        <p>Active Username: {username}</p>
+      </li>
+    </>
+  )}
+</ul>
+
+
             
             
           </div>

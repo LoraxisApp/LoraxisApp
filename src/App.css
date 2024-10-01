@@ -59,7 +59,7 @@ body {
 }
 
 .logo {
-  width: 210px; /* Logonun genişliğini ayarlayın */
+  width: 360px; /* Logonun genişliğini ayarlayın */
   height: auto; /* Oranını koruyarak yüksekliği ayarlayın */
 }
 
@@ -86,24 +86,73 @@ body {
 .menu {
   list-style-type: none;
   padding: 0;
+  padding-bottom: 30px;
+  border-bottom: 1px solid #333;
 }
 
 .menu li {
-  padding: 12px 0;
+  padding: 12px 30px;
   cursor: pointer;
-  border-bottom: 1px solid #333;
   font-size: 16px;
-  transition: background-color 0.3s ease;
+  transition: background-color 0.3s ease, color 0.3s ease;
+  position: relative; /* Position the li relative to place the arrow */
+  border-radius: 18px;
 }
 
-.menu li:hover {
-  background-color: #333;
+.menu li .right-arrow {
+  float: right; /* Align the arrow to the right side */
+  font-size: 18px; /* Arrow size */
+  color: #fff; /* Arrow color */
+  transition: transform 0.3s ease;
 }
+
+.menu li:hover .right-arrow {
+  transform: translateX(5px); /* Move the arrow 5px to the right on hover */
+}
+
+/* Default hover effect for non-active items */
+.menu li:hover {
+  background-color: #444; /* Darker background on hover */
+  color: white; /* Change text color */
+}
+
+/* Icons in li items */
+.menu li i {
+  margin-right: 10px;
+  font-size: 18px;
+  vertical-align: middle;
+}
+
+/* Active menu item */
+.gradient-active {
+  background: linear-gradient(45deg, #ff6b6b, #f06595, #7b2cbf);
+  color: white;
+  font-weight: bold;
+  padding: 12px 30px;
+  border-radius: 18px;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Ensure hover effect doesn't override the active class styling */
+.gradient-active:hover {
+  background: linear-gradient(45deg, #ff6b6b, #f06595, #7b2cbf); /* Keep gradient background */
+  color: white; /* Maintain text color */
+}
+
+.menu li:hover.gradient-active {
+  background: linear-gradient(45deg, #ff6b6b, #f06595, #7b2cbf); /* Keep gradient on hover */
+}
+
+/* Make sure hover effect applies to non-active items only */
+.menu li:not(.gradient-active):hover {
+  background-color: #444; /* Darker background for non-active items */
+  color: white;
+}
+
 
 .content {
   width: 60%;
   padding: 20px;
-  background-color: #282828;
 }
 
 .upcoming-quizzes {
@@ -232,3 +281,6 @@ p {
   font-size: 16px;
   line-height: 1.6;
 }
+
+
+
