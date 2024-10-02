@@ -25,10 +25,20 @@ const App = () => {
   useEffect(() => {
     if (window.ethereum) {
       setWeb3(new Web3(window.ethereum));
+  
+      // Check if the wallet was connected before
+      const connected = localStorage.getItem("isWalletConnected");
+      const storedAccount = localStorage.getItem("account");
+  
+      if (connected === "true" && storedAccount) {
+        setAccount(storedAccount);
+        setIsWalletConnected(true);
+      }
     } else {
       alert("Please install MetaMask to use this application.");
     }
   }, []);
+  
 
   const handleWalletConnect = async (e) => {
     e.preventDefault();
@@ -36,10 +46,15 @@ const App = () => {
       const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
       setAccount(accounts[0]);
       setIsWalletConnected(true);
+  
+      // Store account and connection status in localStorage
+      localStorage.setItem("isWalletConnected", "true");
+      localStorage.setItem("account", accounts[0]);
     } catch (error) {
       console.error("Cüzdan bağlantı hatası:", error);
     }
   };
+  
 
   const formatAddress = (address) => {
     if (!address) return "";
@@ -50,8 +65,13 @@ const App = () => {
   const handleWalletDisconnect = () => {
     setAccount(null);
     setIsWalletConnected(false);
-    setUsername(""); 
+    setUsername("");
+  
+    // Remove wallet connection status from localStorage
+    localStorage.removeItem("isWalletConnected");
+    localStorage.removeItem("account");
   };
+  
 
   const handleUsernameSubmit = (e) => {
     e.preventDefault();
@@ -462,7 +482,6 @@ const App = () => {
     <i className="fas fa-angle-right right-arrow"></i>
   </li>
 
-  {/* Conditionally render the "Login" link if the wallet is not connected */}
   {!isWalletConnected && (
     <li
       className={selectedMenu === "login" ? "gradient-active" : ""}
@@ -473,16 +492,16 @@ const App = () => {
     </li>
   )}
 
-  {/* Display connected account and username if the wallet is connected */}
   {isWalletConnected && (
     <>
-    <li> <p>Active Wallet Address: {formatAddress(account)}</p>
-      
-<p>Active Username: {username}</p></li>
-
+      <li>
+        <p>Active Wallet Address: {formatAddress(account)}</p>
+        <p>Active Username: {username}</p>
+      </li>
     </>
   )}
 </ul>
+
 
             
             
