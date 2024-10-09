@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
-import Web3 from "web3";
 import "./App.css";
 import logo from './assets/lrx.png'; 
 import getContract, { getSignerContract } from './contract';
 import '@fortawesome/fontawesome-free/css/all.min.css';
+import { TailSpin } from 'react-loader-spinner';
 
 
 const App = () => {
@@ -11,7 +11,6 @@ const App = () => {
   const [selectedMenu, setSelectedMenu] = useState("homePage");
   const [account, setAccount] = useState(null);
   const [username, setUsername] = useState("");
-  const [web3, setWeb3] = useState(null);
   const [quizzes, setQuizzes] = useState([]);
   const [completedQuizzes, setCompletedQuizzes] = useState([]);
   const [currentQuiz, setCurrentQuiz] = useState(null);
@@ -21,39 +20,95 @@ const App = () => {
   const [score, setScore] = useState(null);
   const [leaderboard, setLeaderboard] = useState([]);
   const [upcomingQuizzes, setUpcomingQuizzes] = useState([]); // State to store upcoming quizzes
+  const [loading, setLoading] = useState(false); // Global loading state
+  const [quizWithEarliestStartDate, setQuizWithEarliestStartDate] = useState(null);
+
+  const LoadingOverlay = ({ isLoading }) => {
+    if (!isLoading) return null; // Don't render the overlay if not loading
+  
+    return (
+      <div className="loading-overlay">
+        <div className="loader-container">
+          <TailSpin height="80" width="80" color="white" ariaLabel="loading" />
+          <p>Loading...</p>
+        </div>
+      </div>
+    );
+  };
+
 
   useEffect(() => {
     if (window.ethereum) {
-      setWeb3(new Web3(window.ethereum));
+
   
       // Check if the wallet was connected before
-      const connected = localStorage.getItem("isWalletConnected");
-      const storedAccount = localStorage.getItem("account");
   
-      if (connected === "true" && storedAccount) {
-        setAccount(storedAccount);
-        setIsWalletConnected(true);
-      }
+      // Check if accounts are already connected on page load
+      window.ethereum.request({ method: "eth_accounts" }).then((accounts) => {
+        if (accounts.length > 0) {
+          setAccount(accounts[0]);
+          setIsWalletConnected(true);
+        } else {
+          setAccount(null);
+          setIsWalletConnected(false);
+        }
+      });
+  
+      // Listen for account changes or disconnects
+      window.ethereum.on("accountsChanged", (accounts) => {
+        if (accounts.length === 0) {
+          // Handle disconnection (MetaMask logout)
+          handleWalletDisconnect();
+        } else {
+          // Update the account when changed
+          setAccount(accounts[0]);
+          setIsWalletConnected(true);
+          localStorage.setItem("account", accounts[0]);
+          localStorage.setItem("isWalletConnected", "true");
+        }
+      });
+  
+      window.ethereum.on("disconnect", () => {
+        handleWalletDisconnect();
+      });
     } else {
       alert("Please install MetaMask to use this application.");
     }
+  
+    return () => {
+      if (window.ethereum) {
+        window.ethereum.removeListener("accountsChanged", handleWalletDisconnect);
+        window.ethereum.removeListener("disconnect", handleWalletDisconnect);
+      }
+    };
   }, []);
+  
+  
+  
   
 
   const handleWalletConnect = async (e) => {
     e.preventDefault();
     try {
       const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
-      setAccount(accounts[0]);
-      setIsWalletConnected(true);
+      
+      if (accounts && accounts.length > 0) {
+        setAccount(accounts[0]);
+        setIsWalletConnected(true);
   
-      // Store account and connection status in localStorage
-      localStorage.setItem("isWalletConnected", "true");
-      localStorage.setItem("account", accounts[0]);
+        // Store account and connection status in localStorage
+        localStorage.setItem("isWalletConnected", "true");
+        localStorage.setItem("account", accounts[0]);
+      } else {
+        // If no accounts are returned, make sure to reset the state
+        setAccount(null);
+        setIsWalletConnected(false);
+      }
     } catch (error) {
       console.error("Cüzdan bağlantı hatası:", error);
     }
   };
+  
   
 
   const formatAddress = (address) => {
@@ -72,15 +127,10 @@ const App = () => {
     localStorage.removeItem("account");
   };
   
+  
+  
 
-  const handleUsernameSubmit = (e) => {
-    e.preventDefault();
-    const name = e.target.username.value;
-    if (name) {
-      setUsername(name);
-      handleWalletConnect(e); 
-    }
-  };
+  
 
   const fetchUpcomingQuizzes = async () => {
     try {
@@ -92,12 +142,58 @@ const App = () => {
   
       // Sort the copied quizzes array based on startDate (converted to a Number)
       const sortedUpcoming = upcomingCopy.sort((a, b) => Number(a.startDate) - Number(b.startDate));
+
+      // Set the quiz with the earliest start date
+      if (sortedUpcoming.length > 0) {
+        setQuizWithEarliestStartDate(sortedUpcoming[0]);
+      }
   
       setUpcomingQuizzes(sortedUpcoming); // Store the sorted quizzes in the state
     } catch (error) {
       console.error("Error fetching upcoming quizzes:", error);
     }
   };
+  
+  
+  const fetchAllQuizzes = async () => {
+    try {
+      const contract = await getContract();
+      const allQuizzes = await contract.getAllQuizzes();
+
+      // Map quizzes with meaningful property names
+      const mappedQuizzes = allQuizzes.map(quiz => ({
+        title: quiz[0],
+        logoURL: quiz[1],
+        coverURL: quiz[2],
+        description: quiz[3],
+        questionCount: Number(quiz[4]),
+        startDate: Number(quiz[5]),
+        duration: Number(quiz[6]),
+        creator: quiz[7],
+        answersInserted: quiz[8],
+      }));
+
+      // Sort quizzes by startDate and find the one with the earliest startDate
+      const sortedQuizzes = mappedQuizzes.sort((a, b) => a.startDate - b.startDate);
+      setQuizzes(sortedQuizzes);
+
+      
+    } catch (error) {
+      console.error("Error fetching quizzes:", error);
+    }
+  };
+  
+  
+
+  useEffect(() => {
+    if (selectedMenu === "joinQuizzes") {
+      fetchAllQuizzes(); // Fetch all quizzes when navigating to the Join Quizzes page
+    }
+  }, [selectedMenu]);
+  
+  
+  
+  
   
 
   useEffect(() => {
@@ -116,14 +212,17 @@ const App = () => {
   
 
 
-
+    setLoading(true);
       try {
    
         const contract = await getSignerContract();
         const tx = await contract.createQuiz(quizTitle, logoUrl, coverUrl, description, questionCount, startDateTime, duration);
         await tx.wait();
+        await fetchUpcomingQuizzes();
       } catch (error) {
         console.error(error);
+      } finally {
+        setLoading(false); // Stop loading animation
       }
 
 
@@ -140,16 +239,37 @@ const App = () => {
       return <p>No upcoming quizzes available.</p>;
     }
   
-    return upcomingQuizzes.map((quiz, index) => (
-      <li key={index}>
-        <h3>{quiz.title}
-        {/* Convert BigInt quiz.startDate to number before subtracting */}
-        ------------
-        {(Math.floor((Number(quiz.startDate) - new Date().getTime()) / 1000) / 3600).toFixed(1)} hours later
-        </h3>
-      </li>
-    ));
+    return (
+      <ul className="quizzes-list">
+        {upcomingQuizzes.slice(0, 10).map((quiz, index) => (
+          <li key={index} className="quiz-item">
+            <div className="quiz-left">
+              <div className="quiz-logo-container">
+                <img src={quiz.logoURL} alt="Quiz Logo" className="quiz-logo" />
+              </div>
+              <div className="quiz-info">
+                <span className="quiz-title">{quiz.title}</span>
+                <span className="quiz-time">
+                {quiz.description}
+                </span>
+              </div>
+            </div>
+            <div className="quiz-description">
+              <span>{(
+                    Math.floor((Number(quiz.startDate) - new Date().getTime()) / 1000) / 3600
+                  ).toFixed(0)}{" "}
+                  hours later</span>
+            </div>
+          </li>
+        ))}
+      </ul>
+    );
   };
+  
+  
+  
+  
+  
   
   
 
@@ -183,31 +303,26 @@ const App = () => {
     setSelectedMenu("joinQuizzes");
   };
 
-  const handleQuizCompletion = () => {
-    const now = new Date().getTime();
-    const updatedQuizzes = quizzes.map((quiz) => {
-      const timeRemaining = quiz.duration - (now - quiz.startDate);
-      if (timeRemaining <= 0) {
-        return { ...quiz, isCompleted: true };
-      }
-      return quiz;
-    });
-
-    const completed = updatedQuizzes.filter(quiz => quiz.isCompleted && !completedQuizzes.includes(quiz));
-    setCompletedQuizzes([...completedQuizzes, ...completed]); 
-    setQuizzes(updatedQuizzes.filter(quiz => !quiz.isCompleted));
-  };
-
   useEffect(() => {
-    const interval = setInterval(handleQuizCompletion, 1000); 
+    const handleQuizCompletion = () => {
+      const now = new Date().getTime();
+      const updatedQuizzes = quizzes.map((quiz) => {
+        const timeRemaining = quiz.duration - (now - quiz.startDate);
+        if (timeRemaining <= 0) {
+          return { ...quiz, isCompleted: true };
+        }
+        return quiz;
+      });
+  
+      const completed = updatedQuizzes.filter(quiz => quiz.isCompleted && !completedQuizzes.includes(quiz));
+      setCompletedQuizzes([...completedQuizzes, ...completed]);
+      setQuizzes(updatedQuizzes.filter(quiz => !quiz.isCompleted));
+    };
+  
+    const interval = setInterval(handleQuizCompletion, 1000);
     return () => clearInterval(interval);
   }, [quizzes, completedQuizzes]);
 
-  const calculateTimeRemaining = (quiz) => {
-    const now = new Date().getTime();
-    const timeRemaining = quiz.duration - (now - quiz.startDate);
-    return Math.max(0, Math.floor(timeRemaining / 1000)); 
-  };
 
   const handleJoinQuiz = (quizIndex) => {
     const selectedQuiz = quizzes[quizIndex];
@@ -256,6 +371,13 @@ const App = () => {
 
   const renderContent = () => {
     switch (selectedMenu) {
+      case "homePage":
+        return (
+          <div>
+
+{renderQuizCover()}
+          </div>
+        );
       case "createQuiz":
         return (
           <div>
@@ -320,23 +442,30 @@ const App = () => {
             )}
           </div>
         );
-      case "joinQuizzes":
-        return (
-          <div>
-            <h2>Available Quizzes</h2>
-            {quizzes.length > 0 ? (
-              quizzes.map((quiz, index) => (
-                <div key={index} className="quiz-item">
-                  <h3>{quiz.title}</h3>
-                  <p>Time remaining: {calculateTimeRemaining(quiz)} seconds</p>
-                  <button onClick={() => handleJoinQuiz(index)}>Join Quiz</button>
-                </div>
-              ))
-            ) : (
-              <p>No quizzes available. Please create a quiz first.</p>
-            )}
-          </div>
-        );
+        case "joinQuizzes":
+          return (
+            <div>
+              <h2>Available Quizzes</h2>
+              {quizzes.length > 0 ? (
+                <ul className="quizzes-list">
+                  {quizzes.map((quiz, index) => (
+                    <li key={index} className="quiz-item">
+                      <span className="quiz-title">{quiz.title}</span>
+                      <span className="quiz-time">
+                        {(
+                          Math.floor((Number(quiz.startDate) - new Date().getTime()) / 1000) / 3600
+                        ).toFixed(0)} hours remaining
+                      </span>
+                      <button onClick={() => handleJoinQuiz(index)}>Join Quiz</button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p>No quizzes available.</p>
+              )}
+            </div>
+          );
+        
       case "completedQuizzes":
         return (
           <div>
@@ -425,9 +554,28 @@ const App = () => {
     }
   };
 
+
+
+  const renderQuizCover = () => {
+    if (quizWithEarliestStartDate) {
+      return (
+        <div className="quiz-cover-container">
+          <img
+            src={quizWithEarliestStartDate.coverURL}
+            alt="Quiz Cover"
+            className="quiz-cover-image"
+          />
+          <h2>{quizWithEarliestStartDate.title}</h2>
+        </div>
+      );
+    }
+    return null;
+  };
+
   return (
     <div className="app">
         <>
+        <LoadingOverlay isLoading={loading} />
           <div className="sidebar">
             <div className="logo-container">
               <img src={logo} alt="Logo" className="logo" />
@@ -474,33 +622,43 @@ const App = () => {
 
 
 <ul className="menu">
+  {/* Create Quiz with icon */}
   <li
     className={selectedMenu === "createQuiz" ? "gradient-active" : ""}
     onClick={() => setSelectedMenu("createQuiz")}
   >
+    <i className="fas fa-plus-circle"></i> {/* Icon for Create Quiz */}
     Create Quiz
     <i className="fas fa-angle-right right-arrow"></i>
   </li>
 
+  {/* Show login link when wallet is not connected */}
   {!isWalletConnected && (
     <li
       className={selectedMenu === "login" ? "gradient-active" : ""}
       onClick={handleWalletConnect}
     >
-      <i className="fas fa-sign-in-alt"></i> Login
+      <i className="fas fa-sign-in-alt"></i> {/* Icon for Login */}
+      Login
       <i className="fas fa-angle-right right-arrow"></i>
     </li>
   )}
 
+  {/* Show active wallet address and username when wallet is connected */}
   {isWalletConnected && (
     <>
       <li>
-        <p>Active Wallet Address: {formatAddress(account)}</p>
-        <p>Active Username: {username}</p>
+        <i className="fas fa-wallet"></i> {/* Icon for Active Wallet Address */}
+        <span>Active Wallet Address: {formatAddress(account)}</span>
+      </li>
+      <li>
+        <i className="fas fa-user"></i> {/* Icon for Active Username */}
+        <span>Active Username: {username}</span>
       </li>
     </>
   )}
 </ul>
+
 
 
             
@@ -508,9 +666,18 @@ const App = () => {
           </div>
           <div className="content">{renderContent()}</div>
           <div className="upcoming-quizzes">
-            <h2>Upcoming Quizzes</h2>
-            <ul>{renderUpcomingQuizzes()}</ul>
-          </div>
+  {/* Flex container to hold both Next Quizzes and View All button */}
+  <div className="quizzes-header">
+    <h2>Next Quizzes</h2>
+    {/* View All button to the right */}
+    <button className="view-all" onClick={() => setSelectedMenu("joinQuizzes")}>
+      View All
+    </button>
+  </div>
+  <ul>{renderUpcomingQuizzes()}</ul>
+</div>
+
+
         </>
     </div>
   );

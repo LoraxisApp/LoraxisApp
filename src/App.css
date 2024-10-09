@@ -171,19 +171,19 @@ body {
 
 .upcoming-quizzes ul {
   list-style-type: none;
-  padding: 0;
+  padding: 0 3px;
   margin-top: 20px;
 }
 
 .upcoming-quizzes li {
-  padding: 10px 0;
-  border-bottom: 1px solid #333;
+  padding: 10px 10px;
   cursor: pointer;
   transition: background-color 0.3s ease;
 }
 
 .upcoming-quizzes li:hover {
-  background-color: #333;
+  background-color: #444;
+  border-radius: 15px;
 }
 
 .leaderboard-section {
@@ -218,7 +218,10 @@ body {
 }
 
 .quiz-item {
-  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  padding: 10px 15px;
+  transition: background-color 0.3s ease;
 }
 
 .quiz-item h3 {
@@ -296,6 +299,7 @@ p {
   justify-content: space-between;
   align-items: center;
   padding: 0px 10px;
+  border-bottom: 1px solid #333;
 }
 
 .view-all {
@@ -312,5 +316,160 @@ p {
   background: none;
 }
 
+.quizzes-list {
+  list-style-type: none;
+  padding: 0;
+  margin: 0;
+}
 
+.quiz-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 15px;
+  transition: background-color 0.3s ease;
+}
+
+.quiz-item:hover {
+  background-color: #444;
+  border-radius: 15px;
+}
+
+.quiz-left {
+  display: flex;
+  align-items: center;
+}
+
+.quiz-logo-container {
+  flex-shrink: 0;
+  margin-right: 10px;
+}
+
+.quiz-logo {
+  width: 60px;
+  height: 60px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.quiz-info {
+  display: flex;
+  flex-direction: column;
+}
+
+
+.quiz-title {
+  line-height: 12px;
+  font-size: 15px;
+  color: #ffffff;
+  margin-bottom: 5px;
+}
+
+.quiz-time {
+  font-size: 16px;
+  color: #999;
+}
+
+.quiz-description {
+  text-align: right;
+  flex: 1;
+  margin-left: 20px;
+  color: #ccc;
+  font-size: 14px;
+}
+
+.quiz-description span {
+  display: block;
+}
+
+
+/* LoadingOverlay.css */
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.7); /* Dark background */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999; /* Ensure it appears on top of everything */
+}
+
+.loader-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.loader-container p {
+  margin-top: 10px;
+  color: white;
+  font-size: 18px;
+}
+
+.quiz-cover-container {
+  position: relative;
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.quiz-cover-image {
+  width: 100%;
+  max-width: 900px;
+  height: auto;
+  border-radius: 10px;
+  object-fit: cover;
+}
+
+/* Dark overlay at the bottom */
+.quiz-cover-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 25%;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.7), transparent);
+  border-radius: 0 0 10px 10px;
+  display: flex;
+  align-items: center; /* Align items to the center vertically */
+  justify-content: center;
+  padding: 20px;
+}
+
+/* Flexbox for horizontal alignment */
+.quiz-overlay-content {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between; /* Distribute content between left, center, and right */
+  width: 100%; /* Make sure it takes up the entire width */
+  color: white;
+  padding: 0 30px; /* Add padding to create space on the sides */
+}
+
+.quiz-overlay-title {
+  font-size: 20px; /* Bigger title */
+  font-weight: bold;
+  margin: 0;
+  flex: 1; /* Push the title to the left */
+  text-align: left;
+}
+
+.quiz-overlay-description {
+  font-size: 20px; /* Bigger description */
+  font-weight: bold;
+  margin: 0 10px;
+  text-align: center;
+}
+
+.quiz-overlay-time {
+  font-size: 20px; /* Bigger time */
+  font-weight: bold;
+  color: #ddd;
+  margin: 0;
+  flex: 1; /* Push the time to the right */
+  text-align: right;
+}
 
