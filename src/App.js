@@ -13,15 +13,16 @@ const App = () => {
   const [username, setUsername] = useState("");
   const [quizzes, setQuizzes] = useState([]);
   const [completedQuizzes, setCompletedQuizzes] = useState([]);
-  const [currentQuiz, setCurrentQuiz] = useState(null);
+  const [questionCount, setQuestionCount] = useState(null); // Minimum set to 5
   const [questions, setQuestions] = useState([]);
-  const [answers, setAnswers] = useState([]);
+  const [answers] = useState([]);
   const [userAnswers, setUserAnswers] = useState([]);
   const [score, setScore] = useState(null);
   const [leaderboard, setLeaderboard] = useState([]);
   const [upcomingQuizzes, setUpcomingQuizzes] = useState([]); // State to store upcoming quizzes
   const [loading, setLoading] = useState(false); // Global loading state
   const [quizWithEarliestStartDate, setQuizWithEarliestStartDate] = useState(null);
+  const [selectedQuizForDetails, setSelectedQuizForDetails] = useState(null);
 
   const LoadingOverlay = ({ isLoading }) => {
     if (!isLoading) return null; // Don't render the overlay if not loading
@@ -200,37 +201,77 @@ const App = () => {
     fetchUpcomingQuizzes(); // Fetch upcoming quizzes on component mount
   }, []);
 
+  const handleQuestionCountChange = (e) => {
+    const value = e.target.value;
+    const count = Math.min(Math.max(parseInt(value, 10), 5), 15);
+  
+    // If the input is cleared or invalid, set question count to null to allow clearing the field
+    if (isNaN(count)) {
+      setQuestionCount(null);
+      setQuestions([]);
+    } else {
+      setQuestionCount(count);
+      // Create a unique object for each question and set of options
+      setQuestions(Array.from({ length: count }, () => ({
+        question: "",
+        options: ["", "", "", ""],
+      })));
+    }
+  };
+  
+  
+
+  const handleQuestionChange = (index, field, value) => {
+    const updatedQuestions = [...questions];
+    if (field === "question") {
+      updatedQuestions[index].question = value;
+    } else {
+      const optionIndex = parseInt(field.replace("option", ""), 10) - 1;
+      updatedQuestions[index].options[optionIndex] = value;
+    }
+    setQuestions(updatedQuestions);
+  };
+
+
   const handleCreateQuiz = async (e) => {
     e.preventDefault();
+    
+    // Check if all question and option fields are filled
+    const allFieldsFilled = questions.every(
+      (q) => q.question.trim() !== "" && q.options.every((opt) => opt.trim() !== "")
+    );
+  
+    if (!allFieldsFilled) {
+      alert("Please fill in all questions and options before creating the quiz.");
+      return;
+    }
+  
+    // Gather form data
     const quizTitle = e.target.title.value;
     const logoUrl = e.target.logoUrl.value;
     const coverUrl = e.target.coverUrl.value;
     const description = e.target.description.value;
-    const questionCount = parseInt(e.target.questionCount.value);
-    const startDateTime = new Date(e.target.startDateTime.value).getTime(); // Get the datetime in milliseconds
-    const duration = parseInt(e.target.duration.value) * 1000; // Convert to milliseconds
+    const startDateTime = new Date(e.target.startDateTime.value).getTime();
+    const duration = parseInt(e.target.duration.value) * 1000;
   
-
-
     setLoading(true);
-      try {
-   
-        const contract = await getSignerContract();
-        const tx = await contract.createQuiz(quizTitle, logoUrl, coverUrl, description, questionCount, startDateTime, duration);
-        await tx.wait();
-        await fetchUpcomingQuizzes();
-      } catch (error) {
-        console.error(error);
-      } finally {
-        setLoading(false); // Stop loading animation
-      }
-
-
-
-
-
-
+    try {
+      const contract = await getSignerContract();
+      const tx = await contract.createQuiz(
+        quizTitle, logoUrl, coverUrl, description, questions, startDateTime, duration
+      );
+      await tx.wait();
+      
+      // Reset quiz creation fields
+      setQuestionCount(5);
+      setQuestions(Array(5).fill({ question: "", options: ["", "", "", ""] }));
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
   };
+  
 
 
 
@@ -241,67 +282,30 @@ const App = () => {
   
     return (
       <ul className="quizzes-list">
-        {upcomingQuizzes.slice(0, 10).map((quiz, index) => (
-          <li key={index} className="quiz-item">
-            <div className="quiz-left">
-              <div className="quiz-logo-container">
+        {upcomingQuizzes.map((quiz, index) => {
+          const startDateNumber = Number(quiz.startDate); // Convert BigInt to Number
+          const hoursLater = Math.floor((startDateNumber - new Date().getTime()) / 3600000);
+          
+          return (
+            <li key={index} className="quiz-item" onClick={() => handleQuizItemClick(quiz)}>
+              <div className="quiz-left">
                 <img src={quiz.logoURL} alt="Quiz Logo" className="quiz-logo" />
+                <div className="quiz-info">
+                  <span className="quiz-title">{quiz.title}</span>
+                  <span className="quiz-description">{quiz.description}</span>
+                </div>
               </div>
-              <div className="quiz-info">
-                <span className="quiz-title">{quiz.title}</span>
-                <span className="quiz-time">
-                {quiz.description}
-                </span>
+              <div className="quiz-timing">
+                {hoursLater} hours later
               </div>
-            </div>
-            <div className="quiz-description">
-              <span>{(
-                    Math.floor((Number(quiz.startDate) - new Date().getTime()) / 1000) / 3600
-                  ).toFixed(0)}{" "}
-                  hours later</span>
-            </div>
-          </li>
-        ))}
+            </li>
+          );
+        })}
       </ul>
     );
   };
   
   
-  
-  
-  
-  
-  
-
-  const handleAddQuestion = (index, e) => {
-    const { name, value } = e.target;
-    const updatedQuestions = [...questions];
-    updatedQuestions[index] = { ...updatedQuestions[index], [name]: value };
-    setQuestions(updatedQuestions);
-  };
-
-  const handleAddOptions = (qIndex, oIndex, e) => {
-    const value = e.target.value;
-    const updatedQuestions = [...questions];
-    updatedQuestions[qIndex].options[oIndex] = value;
-    setQuestions(updatedQuestions);
-  };
-
-  const handleAddAnswer = (index, e) => {
-    const value = e.target.value;
-    const updatedAnswers = [...answers];
-    updatedAnswers[index] = value;
-    setAnswers(updatedAnswers);
-  };
-
-  const handleSubmitQuiz = () => {
-    const updatedQuiz = { ...currentQuiz, questions, answers };
-    setQuizzes([...quizzes, updatedQuiz]);
-    setCurrentQuiz(null);
-    setQuestions([]);
-    setAnswers([]);
-    setSelectedMenu("joinQuizzes");
-  };
 
   useEffect(() => {
     const handleQuizCompletion = () => {
@@ -323,15 +327,6 @@ const App = () => {
     return () => clearInterval(interval);
   }, [quizzes, completedQuizzes]);
 
-
-  const handleJoinQuiz = (quizIndex) => {
-    const selectedQuiz = quizzes[quizIndex];
-    setCurrentQuiz(selectedQuiz);
-    setQuestions(selectedQuiz.questions);
-    setAnswers(selectedQuiz.answers);
-    setUserAnswers(Array(selectedQuiz.questions.length).fill("")); 
-    setSelectedMenu("answerQuiz");
-  };
 
   const handleSelectAnswer = (qIndex, option) => {
     const updatedUserAnswers = [...userAnswers];
@@ -369,8 +364,62 @@ const App = () => {
     setSelectedMenu("getScore");
   };
 
+  const handleQuizItemClick = (quiz) => {
+    setSelectedQuizForDetails(quiz); // Set selected quiz for detailed view
+    setSelectedMenu("quizDetails");  // Switch menu to quiz details view
+  };
+
+  const renderQuizDetails = () => {
+    if (!selectedQuizForDetails) return null;
+  
+    const { title, description, logoURL, coverURL, questionCount, startDate, duration } = selectedQuizForDetails;
+  
+    // Convert BigInt to Number explicitly
+    const startDateNumber = Number(startDate);
+    const durationInSeconds = Number(duration);
+    const questionCountX = Number(questionCount);
+  
+    // Determine if the quiz has started
+    const isQuizStarted = new Date().getTime() >= startDateNumber;
+  
+    return (
+      <div className="quiz-details-page">
+        <div className="quiz-details-header">
+          <img src={coverURL} alt={`${title} Cover`} className="quiz-details-cover" />
+          <div className="quiz-details-header-content">
+            <h2 className="quiz-details-title">{title}</h2>
+            <p className="quiz-details-description">{description}</p>
+          </div>
+        </div>
+        <div className="quiz-details-body">
+          <div className="quiz-detail-item">
+            <img src={logoURL} alt={`${title} Logo`} className="quiz-details-logo" />
+            <p><strong>Number of Questions:</strong> {questionCountX}</p>
+            <p><strong>Start Date:</strong> {new Date(startDateNumber).toLocaleString()}</p>
+            <p><strong>Duration:</strong> {durationInSeconds / 1000} seconds</p>
+          </div>
+        </div>
+        <button
+          onClick={() => setSelectedMenu("answerQuiz")}
+          disabled={!isQuizStarted}  // Disable button if quiz hasn't started
+          className={`join-quiz-btn ${isQuizStarted ? "" : "disabled-btn"}`}
+        >
+          Join This Quiz
+        </button>
+        <button onClick={() => setSelectedMenu("joinQuizzes")} className="back-btn">
+          Back to Quizzes
+        </button>
+      </div>
+    );
+  };
+  
+  
+  
+
   const renderContent = () => {
     switch (selectedMenu) {
+      case "quizDetails":
+        return renderQuizDetails();
       case "homePage":
         return (
           <div>
@@ -385,86 +434,113 @@ const App = () => {
          
 
 
-            <form onSubmit={handleCreateQuiz}>
-  <input type="text" name="title" placeholder="Quiz Title" required />
-  <input type="text" name="logoUrl" placeholder="Logo Url" required />
-  <input type="text" name="coverUrl" placeholder="Cover Image Url" required />
-  <input type="text" name="description" placeholder="Description" required />
-  <input type="number" name="questionCount" placeholder="Number of Questions" required />
-  
-  {/* Change this input to datetime-local */}
-  <input type="datetime-local" name="startDateTime" placeholder="Start Date and Time" required />
-  
-  <input type="number" name="duration" placeholder="Duration (in seconds)" required />
-  <button type="submit">Create Quiz</button>
-</form>
+            <form onSubmit={handleCreateQuiz} className="create-quiz-form">
+        <input type="text" name="title" placeholder="Quiz Title" required className="input-field" />
+        <input type="text" name="logoUrl" placeholder="Logo Url" required className="input-field" />
+        <input type="text" name="coverUrl" placeholder="Cover Image Url" required className="input-field" />
+        <input type="text" name="description" placeholder="Description" required className="input-field" />
+        <input
+  type="number"
+  name="questionCount"
+  placeholder="Number of Questions (5-15)"
+  value={questionCount ?? ''} // Use empty string if null
+  onChange={handleQuestionCountChange}
+  min="5"
+  max="15"
+  className="input-field"
+/>
+        <input type="datetime-local" name="startDateTime" placeholder="Start Date and Time" required className="input-field" />
+        <input type="number" name="duration" placeholder="Duration (in seconds)" required className="input-field" />
+        <button type="submit" className="submit-btn">Create Quiz</button>
+      </form>
 
 
 
 
 
-            {currentQuiz && (
+
+     
               <div className="add-questions-section">
                 <h3>Add Questions and Options</h3>
                 {questions.map((q, qIndex) => (
-                  <div key={qIndex} className="question-block">
-                    <input
-                      type="text"
-                      name="question"
-                      placeholder={`Question ${qIndex + 1}`}
-                      value={q.question}
-                      onChange={(e) => handleAddQuestion(qIndex, e)}
-                    />
-                    {q.options.map((option, oIndex) => (
-                      <input
-                        key={oIndex}
-                        type="text"
-                        name={`option${oIndex + 1}`}
-                        placeholder={`Option ${oIndex + 1}`}
-                        value={option}
-                        onChange={(e) => handleAddOptions(qIndex, oIndex, e)}
-                      />
-                    ))}
-                  </div>
-                ))}
-                <h3>Add Correct Answers</h3>
-                {questions.map((q, index) => (
-                  <div key={index}>
-                    <input
-                      type="text"
-                      placeholder={`Correct answer for question ${index + 1}`}
-                      onChange={(e) => handleAddAnswer(index, e)}
-                    />
-                  </div>
-                ))}
-                <button onClick={handleSubmitQuiz}>Submit Quiz</button>
+          <div key={qIndex} className="question-block">
+            <input
+              type="text"
+              placeholder={`Question ${qIndex + 1}`}
+              value={q.question}
+              onChange={(e) => handleQuestionChange(qIndex, "question", e.target.value)}
+              className="input-field"
+            />
+            {q.options.map((option, oIndex) => (
+              <input
+                key={oIndex}
+                type="text"
+                placeholder={`Option ${oIndex + 1}`}
+                value={option}
+                onChange={(e) => handleQuestionChange(qIndex, `option${oIndex + 1}`, e.target.value)}
+                className="input-field"
+              />
+            ))}
+          </div>
+        ))}
+                
               </div>
-            )}
+
           </div>
         );
         case "joinQuizzes":
-          return (
-            <div>
-              <h2>Available Quizzes</h2>
-              {quizzes.length > 0 ? (
-                <ul className="quizzes-list">
-                  {quizzes.map((quiz, index) => (
-                    <li key={index} className="quiz-item">
-                      <span className="quiz-title">{quiz.title}</span>
-                      <span className="quiz-time">
-                        {(
-                          Math.floor((Number(quiz.startDate) - new Date().getTime()) / 1000) / 3600
-                        ).toFixed(0)} hours remaining
-                      </span>
-                      <button onClick={() => handleJoinQuiz(index)}>Join Quiz</button>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p>No quizzes available.</p>
-              )}
-            </div>
-          );
+  return (
+    <div>
+      <h2>Available Quizzes</h2>
+      {quizzes.length > 0 ? (
+        <ul className="quizzes-listAll">
+          {quizzes.map((quiz, index) => (
+            <li key={index} className="quiz-itemAll">
+              <div className="quiz-content-containerAll">
+                {/* Display quiz logo */}
+                <div className="quiz-logo-containerAll">
+                  <div className="quiz-detailsAll">
+                    <img src={quiz.logoURL} alt="Quiz Logo" className="quiz-logoAll" />
+                    <span className="quiz-titleAll">{quiz.title}</span>
+                  </div>
+                </div>
+
+                {/* Display quiz title, description, and question count */}
+                <div className="quiz-detailsAll">
+                  <span className="quiz-descriptionAll">{quiz.description}</span>
+                  <span className="quiz-questionsAll">{quiz.questionCount} questions</span>
+                </div>
+
+                {/* Display time remaining */}
+                <div className="quiz-timeAll">
+                  {(
+                    Math.floor((Number(quiz.startDate) - new Date().getTime()) / 1000) / 3600
+                  ).toFixed(0)}{" "}
+                  hours remaining
+                </div>
+
+                {/* Details Button */}
+                <div className="quiz-actionAll">
+                  <button 
+                    className="join-quiz-btnAll"
+                    onClick={() => handleQuizItemClick(quiz)}  // Pass quiz to view its details
+                  >
+                    Details
+                  </button>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p>No quizzes available.</p>
+      )}
+    </div>
+  );
+
+
+
+
         
       case "completedQuizzes":
         return (
@@ -696,7 +772,10 @@ const renderQuizCover = () => {
   )}
 </ul>
 
-
+<div className="loraxis-card">
+  <h3 className="loraxis-title">What is Loraxis?</h3>
+  <button className="loraxis-btn">Review</button>
+</div>
 
             
             

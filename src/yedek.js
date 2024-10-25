@@ -22,6 +22,7 @@ const App = () => {
   const [upcomingQuizzes, setUpcomingQuizzes] = useState([]); // State to store upcoming quizzes
   const [loading, setLoading] = useState(false); // Global loading state
   const [quizWithEarliestStartDate, setQuizWithEarliestStartDate] = useState(null);
+  const [selectedQuizForDetails, setSelectedQuizForDetails] = useState(null);
 
   const LoadingOverlay = ({ isLoading }) => {
     if (!isLoading) return null; // Don't render the overlay if not loading
@@ -241,30 +242,29 @@ const App = () => {
   
     return (
       <ul className="quizzes-list">
-        {upcomingQuizzes.slice(0, 10).map((quiz, index) => (
-          <li key={index} className="quiz-item">
-            <div className="quiz-left">
-              <div className="quiz-logo-container">
+        {upcomingQuizzes.map((quiz, index) => {
+          const startDateNumber = Number(quiz.startDate); // Convert BigInt to Number
+          const hoursLater = Math.floor((startDateNumber - new Date().getTime()) / 3600000);
+          
+          return (
+            <li key={index} className="quiz-item" onClick={() => handleQuizItemClick(quiz)}>
+              <div className="quiz-left">
                 <img src={quiz.logoURL} alt="Quiz Logo" className="quiz-logo" />
+                <div className="quiz-info">
+                  <span className="quiz-title">{quiz.title}</span>
+                  <span className="quiz-description">{quiz.description}</span>
+                </div>
               </div>
-              <div className="quiz-info">
-                <span className="quiz-title">{quiz.title}</span>
-                <span className="quiz-time">
-                {quiz.description}
-                </span>
+              <div className="quiz-timing">
+                {hoursLater} hours later
               </div>
-            </div>
-            <div className="quiz-description">
-              <span>{(
-                    Math.floor((Number(quiz.startDate) - new Date().getTime()) / 1000) / 3600
-                  ).toFixed(0)}{" "}
-                  hours later</span>
-            </div>
-          </li>
-        ))}
+            </li>
+          );
+        })}
       </ul>
     );
   };
+  
   
   
   
@@ -324,15 +324,6 @@ const App = () => {
   }, [quizzes, completedQuizzes]);
 
 
-  const handleJoinQuiz = (quizIndex) => {
-    const selectedQuiz = quizzes[quizIndex];
-    setCurrentQuiz(selectedQuiz);
-    setQuestions(selectedQuiz.questions);
-    setAnswers(selectedQuiz.answers);
-    setUserAnswers(Array(selectedQuiz.questions.length).fill("")); 
-    setSelectedMenu("answerQuiz");
-  };
-
   const handleSelectAnswer = (qIndex, option) => {
     const updatedUserAnswers = [...userAnswers];
     updatedUserAnswers[qIndex] = option;
@@ -369,8 +360,49 @@ const App = () => {
     setSelectedMenu("getScore");
   };
 
+  const handleQuizItemClick = (quiz) => {
+    setSelectedQuizForDetails(quiz); // Set selected quiz for detailed view
+    setSelectedMenu("quizDetails");  // Switch menu to quiz details view
+  };
+
+  const renderQuizDetails = () => {
+    if (!selectedQuizForDetails) return null;
+  
+    const { title, description, logoURL, coverURL, questionCount, startDate, duration } = selectedQuizForDetails;
+  
+    // Convert BigInt to Number explicitly
+    const startDateNumber = Number(startDate);
+    const durationInSeconds = Number(duration);
+    const questionCountX = Number(questionCount);
+  
+    return (
+      <div className="quiz-details-page">
+        <div className="quiz-details-header">
+          <img src={coverURL} alt={`${title} Cover`} className="quiz-details-cover" />
+          <div className="quiz-details-header-content">
+            <h2 className="quiz-details-title">{title}</h2>
+            <p className="quiz-details-description">{description}</p>
+          </div>
+        </div>
+        <div className="quiz-details-body">
+          <div className="quiz-detail-item">
+            <img src={logoURL} alt={`${title} Logo`} className="quiz-details-logo" />
+            <p><strong>Number of Questions:</strong> {questionCountX}</p>
+            <p><strong>Start Date:</strong> {new Date(startDateNumber).toLocaleString()}</p>
+            <p><strong>Duration:</strong> {durationInSeconds / 1000} seconds</p>
+          </div>
+        </div>
+        <button onClick={() => setSelectedMenu("joinQuizzes")} className="back-btn">Back to Quizzes</button>
+      </div>
+    );
+  };
+  
+  
+
   const renderContent = () => {
     switch (selectedMenu) {
+      case "quizDetails":
+        return renderQuizDetails();
       case "homePage":
         return (
           <div>
@@ -385,19 +417,17 @@ const App = () => {
          
 
 
-            <form onSubmit={handleCreateQuiz}>
-  <input type="text" name="title" placeholder="Quiz Title" required />
-  <input type="text" name="logoUrl" placeholder="Logo Url" required />
-  <input type="text" name="coverUrl" placeholder="Cover Image Url" required />
-  <input type="text" name="description" placeholder="Description" required />
-  <input type="number" name="questionCount" placeholder="Number of Questions" required />
-  
-  {/* Change this input to datetime-local */}
-  <input type="datetime-local" name="startDateTime" placeholder="Start Date and Time" required />
-  
-  <input type="number" name="duration" placeholder="Duration (in seconds)" required />
-  <button type="submit">Create Quiz</button>
+            <form onSubmit={handleCreateQuiz} className="create-quiz-form">
+  <input type="text" name="title" placeholder="Quiz Title" required className="input-field" />
+  <input type="text" name="logoUrl" placeholder="Logo Url" required className="input-field" />
+  <input type="text" name="coverUrl" placeholder="Cover Image Url" required className="input-field" />
+  <input type="text" name="description" placeholder="Description" required className="input-field" />
+  <input type="number" name="questionCount" placeholder="Number of Questions" required className="input-field" />
+  <input type="datetime-local" name="startDateTime" placeholder="Start Date and Time" required className="input-field" />
+  <input type="number" name="duration" placeholder="Duration (in seconds)" required className="input-field" />
+  <button type="submit" className="submit-btn">Create Quiz</button>
 </form>
+
 
 
 
@@ -443,28 +473,58 @@ const App = () => {
           </div>
         );
         case "joinQuizzes":
-          return (
-            <div>
-              <h2>Available Quizzes</h2>
-              {quizzes.length > 0 ? (
-                <ul className="quizzes-list">
-                  {quizzes.map((quiz, index) => (
-                    <li key={index} className="quiz-item">
-                      <span className="quiz-title">{quiz.title}</span>
-                      <span className="quiz-time">
-                        {(
-                          Math.floor((Number(quiz.startDate) - new Date().getTime()) / 1000) / 3600
-                        ).toFixed(0)} hours remaining
-                      </span>
-                      <button onClick={() => handleJoinQuiz(index)}>Join Quiz</button>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p>No quizzes available.</p>
-              )}
-            </div>
-          );
+  return (
+    <div>
+      <h2>Available Quizzes</h2>
+      {quizzes.length > 0 ? (
+        <ul className="quizzes-listAll">
+          {quizzes.map((quiz, index) => (
+            <li key={index} className="quiz-itemAll">
+              <div className="quiz-content-containerAll">
+                {/* Display quiz logo */}
+                <div className="quiz-logo-containerAll">
+                  <div className="quiz-detailsAll">
+                    <img src={quiz.logoURL} alt="Quiz Logo" className="quiz-logoAll" />
+                    <span className="quiz-titleAll">{quiz.title}</span>
+                  </div>
+                </div>
+
+                {/* Display quiz title, description, and question count */}
+                <div className="quiz-detailsAll">
+                  <span className="quiz-descriptionAll">{quiz.description}</span>
+                  <span className="quiz-questionsAll">{quiz.questionCount} questions</span>
+                </div>
+
+                {/* Display time remaining */}
+                <div className="quiz-timeAll">
+                  {(
+                    Math.floor((Number(quiz.startDate) - new Date().getTime()) / 1000) / 3600
+                  ).toFixed(0)}{" "}
+                  hours remaining
+                </div>
+
+                {/* Details Button */}
+                <div className="quiz-actionAll">
+                  <button 
+                    className="join-quiz-btnAll"
+                    onClick={() => handleQuizItemClick(quiz)}  // Pass quiz to view its details
+                  >
+                    Details
+                  </button>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p>No quizzes available.</p>
+      )}
+    </div>
+  );
+
+
+
+
         
       case "completedQuizzes":
         return (
@@ -555,22 +615,59 @@ const App = () => {
   };
 
 
+  // Function to calculate the remaining time in days, hours, minutes, and seconds
+// Function to calculate the remaining time in days, hours, minutes, and seconds
+const calculateTimeRemaining = (startDate) => {
+  const now = new Date().getTime();
+  
+  // Convert BigInt to number for arithmetic operations
+  const startDateNumber = Number(startDate); // Convert BigInt to Number
+  const timeDiff = startDateNumber - now;
 
-  const renderQuizCover = () => {
-    if (quizWithEarliestStartDate) {
-      return (
-        <div className="quiz-cover-container">
-          <img
-            src={quizWithEarliestStartDate.coverURL}
-            alt="Quiz Cover"
-            className="quiz-cover-image"
-          />
-          <h2>{quizWithEarliestStartDate.title}</h2>
+  if (timeDiff <= 0) {
+    return "Time has expired";
+  }
+
+  const days = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((timeDiff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+  const minutes = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
+  const seconds = Math.floor((timeDiff % (1000 * 60)) / 1000);
+
+  return `${days} days ${hours} hours ${minutes} minutes ${seconds} seconds`;
+};
+
+
+
+
+
+
+const renderQuizCover = () => {
+  if (quizWithEarliestStartDate) {
+    const timeRemaining = calculateTimeRemaining(quizWithEarliestStartDate.startDate);
+  
+    return (
+      <div className="quiz-cover-container">
+        <img
+          src={quizWithEarliestStartDate.coverURL}
+          alt="Quiz Cover"
+          className="quiz-cover-image"
+        />
+        {/* Add an overlay with title, description, and time remaining */}
+        <div className="quiz-cover-overlay">
+          <div className="quiz-overlay-content">
+            <h2 className="quiz-overlay-title">{quizWithEarliestStartDate.title}</h2>
+            <p className="quiz-overlay-description">{timeRemaining}</p>
+            <p className="quiz-overlay-time">{quizWithEarliestStartDate.description}</p>
+          </div>
         </div>
-      );
-    }
-    return null;
-  };
+      </div>
+    );
+  }
+  return null;
+};
+
+  
+  
 
   return (
     <div className="app">
@@ -659,7 +756,10 @@ const App = () => {
   )}
 </ul>
 
-
+<div className="loraxis-card">
+  <h3 className="loraxis-title">What is Loraxis?</h3>
+  <button className="loraxis-btn">Review</button>
+</div>
 
             
             
