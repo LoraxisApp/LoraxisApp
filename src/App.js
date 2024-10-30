@@ -15,14 +15,15 @@ const App = () => {
   const [completedQuizzes, setCompletedQuizzes] = useState([]);
   const [questionCount, setQuestionCount] = useState(null); // Minimum set to 5
   const [questions, setQuestions] = useState([]);
-  const [answers] = useState([]);
   const [userAnswers, setUserAnswers] = useState([]);
-  const [score, setScore] = useState(null);
-  const [leaderboard, setLeaderboard] = useState([]);
+  const [score] = useState(null);
+  const [leaderboard] = useState([]);
   const [upcomingQuizzes, setUpcomingQuizzes] = useState([]); // State to store upcoming quizzes
   const [loading, setLoading] = useState(false); // Global loading state
   const [quizWithEarliestStartDate, setQuizWithEarliestStartDate] = useState(null);
   const [selectedQuizForDetails, setSelectedQuizForDetails] = useState(null);
+  const [SelectedQuizID, setSelectedQuizID] = useState(null);
+  
 
   const LoadingOverlay = ({ isLoading }) => {
     if (!isLoading) return null; // Don't render the overlay if not loading
@@ -251,7 +252,7 @@ const App = () => {
     const logoUrl = e.target.logoUrl.value;
     const coverUrl = e.target.coverUrl.value;
     const description = e.target.description.value;
-    const startDateTime = new Date(e.target.startDateTime.value).getTime();
+    const startDateTime = Math.floor(new Date(e.target.startDateTime.value).getTime() / 1000);
     const duration = parseInt(e.target.duration.value) * 1000;
   
     setLoading(true);
@@ -283,11 +284,11 @@ const App = () => {
     return (
       <ul className="quizzes-list">
         {upcomingQuizzes.map((quiz, index) => {
-          const startDateNumber = Number(quiz.startDate); // Convert BigInt to Number
+          const startDateNumber = Number(quiz.startDate) * 1000; // Convert BigInt to Number
           const hoursLater = Math.floor((startDateNumber - new Date().getTime()) / 3600000);
           
           return (
-            <li key={index} className="quiz-item" onClick={() => handleQuizItemClick(quiz)}>
+            <li key={index} className="quiz-item" onClick={() => handleQuizItemClick(quiz, index)}>
               <div className="quiz-left">
                 <img src={quiz.logoURL} alt="Quiz Logo" className="quiz-logo" />
                 <div className="quiz-info">
@@ -334,40 +335,60 @@ const App = () => {
     setUserAnswers(updatedUserAnswers);
   };
 
-  const handleSubmitAnswers = () => {
-    let newScore = 0;
-    userAnswers.forEach((answer, index) => {
-      if (answer === answers[index]) {
-        newScore += 1;
-      }
-    });
-
-    const reward = newScore * 10;
-    setScore(reward);
-
-    const participant = {
-      username,
-      quizzes: 1,
-      totalReward: reward,
-    };
-
-    const updatedLeaderboard = [...leaderboard];
-    const existingParticipantIndex = updatedLeaderboard.findIndex((p) => p.username === username);
-    if (existingParticipantIndex >= 0) {
-      updatedLeaderboard[existingParticipantIndex].quizzes += 1;
-      updatedLeaderboard[existingParticipantIndex].totalReward += reward;
-    } else {
-      updatedLeaderboard.push(participant);
+  const handleSubmitAnswers = async () => {
+    if (!selectedQuizForDetails) {
+      console.error("No quiz selected");
+      return;
     }
-
-    setLeaderboard(updatedLeaderboard);
-    setSelectedMenu("getScore");
+  
+    const quizId = SelectedQuizID; // Get quizId from the selected quiz
+    console.log(quizId)
+    // Filter out any empty or undefined answers to ensure we don't have NaN values
+    const answersArray = userAnswers.map(answer => {
+      const parsedAnswer = parseInt(answer, 10);
+      return isNaN(parsedAnswer) ? 0 : parsedAnswer; // Default to 0 if answer is invalid
+    });
+  
+    // Check if any answers are still NaN after parsing
+    if (answersArray.some(answer => isNaN(answer))) {
+      console.error("Invalid answers detected:", answersArray);
+      alert("Please fill in all answers before submitting.");
+      return;
+    }
+  
+    console.log("Submitting answers:", answersArray); // Debug: log answers to be submitted
+  
+    setLoading(true); // Show loading spinner during transaction
+    try {
+      const contract = await getSignerContract(); // Get contract instance with signer
+      const tx = await contract.submitAnswers(quizId, answersArray); // Call the submitAnswers function
+      await tx.wait(); // Wait for transaction to complete
+  
+      alert("Answers submitted successfully!");
+      setSelectedMenu("getScore"); // Redirect to the score page
+    } catch (error) {
+      console.error("Error submitting answers:", error);
+      alert("Failed to submit answers. Please try again.");
+    } finally {
+      setLoading(false); // Hide loading spinner after transaction
+    }
   };
+  
+  
 
-  const handleQuizItemClick = (quiz) => {
-    setSelectedQuizForDetails(quiz); // Set selected quiz for detailed view
-    setSelectedMenu("quizDetails");  // Switch menu to quiz details view
-  };
+  const handleQuizItemClick = async (quiz, index) => {
+  try {
+    const contract = await getContract();
+    const questions = await contract.getQuizQuestions(index);
+    setQuestions(questions); // Set fetched questions in state
+    setSelectedQuizForDetails(quiz); // Set selected quiz details
+    setSelectedQuizID(index); // Set selected quiz details
+    setSelectedMenu("quizDetails"); // Switch to quiz details view
+  } catch (error) {
+    console.error("Error fetching quiz questions:", error);
+  }
+};
+
 
   const renderQuizDetails = () => {
     if (!selectedQuizForDetails) return null;
@@ -375,7 +396,7 @@ const App = () => {
     const { title, description, logoURL, coverURL, questionCount, startDate, duration } = selectedQuizForDetails;
   
     // Convert BigInt to Number explicitly
-    const startDateNumber = Number(startDate);
+    const startDateNumber = Number(startDate) * 1000;
     const durationInSeconds = Number(duration);
     const questionCountX = Number(questionCount);
   
@@ -514,7 +535,7 @@ const App = () => {
                 {/* Display time remaining */}
                 <div className="quiz-timeAll">
                   {(
-                    Math.floor((Number(quiz.startDate) - new Date().getTime()) / 1000) / 3600
+                    Math.floor((Number(quiz.startDate) * 1000 - new Date().getTime()) / 1000) / 3600
                   ).toFixed(0)}{" "}
                   hours remaining
                 </div>
@@ -523,7 +544,7 @@ const App = () => {
                 <div className="quiz-actionAll">
                   <button 
                     className="join-quiz-btnAll"
-                    onClick={() => handleQuizItemClick(quiz)}  // Pass quiz to view its details
+                    onClick={() => handleQuizItemClick(quiz, index)}  // Pass quiz to view its details
                   >
                     Details
                   </button>
@@ -558,30 +579,49 @@ const App = () => {
             )}
           </div>
         );
-      case "answerQuiz":
-        return (
-          <div>
-            <h2>Answer the Quiz</h2>
-            {questions.map((q, qIndex) => (
-              <div key={qIndex} className="question-block">
-                <h3>{q.question}</h3>
-                {q.options.map((option, oIndex) => (
-                  <label key={oIndex}>
-                    <input
-                      type="radio"
-                      name={`question${qIndex}`}
-                      value={option}
-                      checked={userAnswers[qIndex] === option}
-                      onChange={() => handleSelectAnswer(qIndex, option)}
-                    />
-                    {option}
-                  </label>
-                ))}
+        case "answerQuiz":
+          const { title, logoURL, startDate, duration } = selectedQuizForDetails || {};
+          const startDateFormatted = new Date(Number(startDate) * 1000).toLocaleString(); // Format start date
+          const durationInMinutes = Number(duration) / 60; // Convert duration from seconds to minutes
+        
+          return (
+            <div>
+              {/* Quiz Details at the Top */}
+              <div className="quiz-details-top">
+                <img src={logoURL} alt={`${title} Logo`} className="quiz-details-logo" />
+                <h2>{title}</h2>
+                <p><strong>Start Date:</strong> {startDateFormatted}</p>
+                <p><strong>Duration:</strong> {durationInMinutes} minutes</p>
               </div>
-            ))}
-            <button onClick={handleSubmitAnswers}>Submit Answers</button>
-          </div>
-        );
+        
+              {/* Questions and Answer Options */}
+              {questions.map((q, qIndex) => (
+  <div key={qIndex} className="question-blockX">
+    <h4>{q.question}</h4>
+    <div className="options-container">
+      {q.options.map((option, oIndex) => (
+        <label key={oIndex} className="option-label">
+          <input
+            type="radio"
+            name={`question${qIndex}`}
+            value={option}
+            checked={userAnswers[qIndex] === option}
+            onChange={() => handleSelectAnswer(qIndex, option)}
+          />
+          {option}
+        </label>
+      ))}
+    </div>
+  </div>
+))}
+
+<div className="submit-button-container">
+  <button onClick={handleSubmitAnswers} className="submit-btn">Submit Answers</button>
+</div>
+
+            </div>
+          );
+        
       case "getScore":
         return (
           <div>
@@ -637,7 +677,7 @@ const calculateTimeRemaining = (startDate) => {
   const now = new Date().getTime();
   
   // Convert BigInt to number for arithmetic operations
-  const startDateNumber = Number(startDate); // Convert BigInt to Number
+  const startDateNumber = Number(startDate) * 1000; // Convert BigInt to Number
   const timeDiff = startDateNumber - now;
 
   if (timeDiff <= 0) {
