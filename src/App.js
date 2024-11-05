@@ -23,6 +23,8 @@ const App = () => {
   const [quizWithEarliestStartDate, setQuizWithEarliestStartDate] = useState(null);
   const [selectedQuizForDetails, setSelectedQuizForDetails] = useState(null);
   const [SelectedQuizID, setSelectedQuizID] = useState(null);
+  const [myQuizzes, setMyQuizzes] = useState([]);
+  const [correctAnswers, setCorrectAnswers] = useState([]);
   
 
   const LoadingOverlay = ({ isLoading }) => {
@@ -38,11 +40,114 @@ const App = () => {
     );
   };
 
+
+
+  const renderSubmitCorrectAnswers = () => {
+    return (
+      <div>
+        <h2>Submit Correct Answers</h2>
+        {questions.map((q, qIndex) => (
+          <div key={qIndex} className="question-blockX">
+            <h4>{q.question}</h4>
+            <div className="options-container">
+              {q.options.map((option, oIndex) => (
+                <label key={oIndex} className="option-label">
+                  <input
+                    type="radio"
+                    name={`correctAnswer${qIndex}`}
+                    value={oIndex}
+                    checked={correctAnswers[qIndex] === oIndex}
+                    onChange={() => handleSelectCorrectAnswer(qIndex, oIndex)}
+                  />
+                  {option}
+                </label>
+              ))}
+            </div>
+          </div>
+        ))}
+        <button onClick={handleSubmitCorrectAnswers} className="submit-btn">
+          Submit Correct Answers
+        </button>
+      </div>
+    );
+  };
+
+
+
+  const handleSelectCorrectAnswer = (qIndex, optionIndex) => {
+    setCorrectAnswers((prevAnswers) => {
+      const updatedAnswers = [...prevAnswers];
+      updatedAnswers[qIndex] = optionIndex;
+      return updatedAnswers;
+    });
+  };
+
+  // Handler to submit correct answers to the contract
+  const handleSubmitCorrectAnswers = async () => {
+    if (!selectedQuizForDetails) return;
+
+    setLoading(true);
+    try {
+      const contract = await getSignerContract();
+      const tx = await contract.insertCorrectAnswers(SelectedQuizID, correctAnswers);
+      await tx.wait();
+      alert("Correct answers submitted successfully!");
+      setSelectedMenu("quizDetails"); // Redirect back to quiz details
+    } catch (error) {
+      console.error("Error submitting correct answers:", error);
+      alert("Failed to submit correct answers. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+
   useEffect(() => {
     setUserAnswers(Array(questions.length).fill(null));
   }, [questions.length]); // Initialize only when questions length changes
   
   
+
+  const fetchMyQuizzes = async () => {
+    if (!account) return; // Ensure wallet is connected
+  
+    try {
+      const contract = await getContract();
+      const allQuizzes = await contract.getAllQuizzes();
+
+
+
+     
+
+
+
+  
+      // Filter quizzes where the creator matches the connected wallet, checking for undefined creators
+      const userCreatedQuizzes = allQuizzes.reduce((acc, quiz, index) => {
+        if (formatAddress(quiz.creator) === formatAddress(account)) {
+          acc.push({
+            title: quiz[0],
+        logoURL: quiz[1],
+        coverURL: quiz[2],
+        description: quiz[3],
+        questionCount: Number(quiz[4]),
+        startDate: Number(quiz[5]),
+        duration: Number(quiz[6]),
+        creator: quiz[7],
+        answersInserted: quiz[8]
+          });
+        }
+        return acc;
+      }, []);
+  
+      setMyQuizzes(userCreatedQuizzes);
+    } catch (error) {
+      console.error("Error fetching user's quizzes:", error);
+    }
+  };
+
+
 
   useEffect(() => {
     if (window.ethereum) {
@@ -133,6 +238,7 @@ const App = () => {
     localStorage.removeItem("isWalletConnected");
     localStorage.removeItem("account");
   };
+  
   
   
   
@@ -390,49 +496,63 @@ const App = () => {
 };
 
 
-  const renderQuizDetails = () => {
-    if (!selectedQuizForDetails) return null;
-  
-    const { title, description, logoURL, coverURL, questionCount, startDate, duration } = selectedQuizForDetails;
-  
-    // Convert BigInt to Number explicitly
-    const startDateNumber = Number(startDate) * 1000;
-    const durationInSeconds = Number(duration);
-    const questionCountX = Number(questionCount);
-  
-    // Determine if the quiz has started
-    const isQuizStarted = new Date().getTime() >= startDateNumber;
-  
-    return (
-      <div className="quiz-details-page">
-        <div className="quiz-details-header">
-          <img src={coverURL} alt={`${title} Cover`} className="quiz-details-cover" />
-          <div className="quiz-details-header-content">
-            <h2 className="quiz-details-title">{title}</h2>
-            <p className="quiz-details-description">{description}</p>
-          </div>
+const renderQuizDetails = () => {
+  if (!selectedQuizForDetails) return null;
+
+  const { title, description, logoURL, coverURL, questionCount, startDate, duration, creator } = selectedQuizForDetails;
+
+  // Convert BigInt to Number explicitly
+  const startDateNumber = Number(startDate) * 1000; // Convert to milliseconds for JavaScript date handling
+  const durationInMilliseconds = Number(duration) * 1000; // Duration is given in seconds, convert to milliseconds
+  const endDateNumber = startDateNumber + durationInMilliseconds; // Calculate quiz end time
+  const isQuizStarted = new Date().getTime() >= startDateNumber; // Check if quiz has started
+  const isQuizCompleted = new Date().getTime() >= endDateNumber; // Check if quiz is completed
+
+  const isQuizCreator = formatAddress(account) === formatAddress(creator);
+
+  return (
+    <div className="quiz-details-page">
+      <div className="quiz-details-header">
+        <img src={coverURL} alt={`${title} Cover`} className="quiz-details-cover" />
+        <div className="quiz-details-header-content">
+          <h2 className="quiz-details-title">{title}</h2>
+          <p className="quiz-details-description">{description}</p>
         </div>
-        <div className="quiz-details-body">
-          <div className="quiz-detail-item">
-            <img src={logoURL} alt={`${title} Logo`} className="quiz-details-logo" />
-            <p><strong>Number of Questions:</strong> {questionCountX}</p>
-            <p><strong>Start Date:</strong> {new Date(startDateNumber).toLocaleString()}</p>
-            <p><strong>Duration:</strong> {durationInSeconds / 60} minutes</p>
-          </div>
-        </div>
-        <button
-          onClick={() => setSelectedMenu("answerQuiz")}
-          disabled={!isQuizStarted}  // Disable button if quiz hasn't started
-          className={`join-quiz-btn ${isQuizStarted ? "" : "disabled-btn"}`}
-        >
-          Join This Quiz
-        </button>
-        <button onClick={() => setSelectedMenu("joinQuizzes")} className="back-btn">
-          Back to Quizzes
-        </button>
       </div>
-    );
-  };
+      <div className="quiz-details-body">
+        <div className="quiz-detail-item">
+          <img src={logoURL} alt={`${title} Logo`} className="quiz-details-logo" />
+          <p><strong>Number of Questions:</strong> {questionCount}</p>
+          <p><strong>Start Date:</strong> {new Date(startDateNumber).toLocaleString()}</p>
+          <p><strong>Duration:</strong> {duration / 60} minutes</p>
+        </div>
+      </div>
+      <button
+        onClick={() => setSelectedMenu("answerQuiz")}
+        disabled={!isQuizStarted || isQuizCompleted}  // Disable if quiz hasn't started or has completed
+        className={`join-quiz-btn ${!isQuizStarted || isQuizCompleted ? "disabled-btn" : ""}`}
+      >
+        Join This Quiz
+      </button>
+    <p>
+      {isQuizCreator && (
+        <button
+          onClick={() => setSelectedMenu("submitCorrectAnswers")}
+          disabled={!isQuizCompleted} // Disable until the quiz has completed
+          className={`submit-answers-btn ${!isQuizCompleted ? "disabled-btn" : ""}`}
+        >
+          Submit Correct Answers
+        </button>
+      )}
+</p>
+
+      <button onClick={() => setSelectedMenu("joinQuizzes")} className="back-btn">
+        Back to Quizzes
+      </button>
+    </div>
+  );
+};
+
   
   
   
@@ -441,6 +561,8 @@ const App = () => {
     switch (selectedMenu) {
       case "quizDetails":
         return renderQuizDetails();
+        case "submitCorrectAnswers":
+        return renderSubmitCorrectAnswers();
       case "homePage":
         return (
           <div>
@@ -560,7 +682,53 @@ const App = () => {
   );
 
 
-
+  case "myQuizzes":
+    return (
+      <div>
+        <h2>My Created Quizzes</h2>
+        {myQuizzes.length > 0 ? (
+          <ul className="quizzes-listAll">
+            {myQuizzes.map((quiz, index) => (
+              <li key={index} className="quiz-itemAll">
+                <div className="quiz-content-containerAll">
+                  {/* Display quiz logo */}
+                  <div className="quiz-logo-containerAll">
+                    <div className="quiz-detailsAll">
+                      <img src={quiz.logoURL} alt="Quiz Logo" className="quiz-logoAll" />
+                      <span className="quiz-titleAll">{quiz.title}</span>
+                    </div>
+                  </div>
+  
+                  {/* Display quiz title, description, and question count */}
+                  <div className="quiz-detailsAll">
+                    <span className="quiz-descriptionAll">{quiz.description}</span>
+                    <span className="quiz-questionsAll">{quiz.questionCount} questions</span>
+                  </div>
+  
+                  {/* Display quiz start date */}
+                  <div className="quiz-timeAll">
+                    {new Date(Number(quiz.startDate) * 1000).toLocaleString()}
+                  </div>
+  
+                  {/* Details Button */}
+                  <div className="quiz-actionAll">
+                    <button 
+                      className="join-quiz-btnAll"
+                      onClick={() => handleQuizItemClick(quiz, index)}  // View details
+                    >
+                      Details
+                    </button>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p>No quizzes created by you.</p>
+        )}
+      </div>
+    );
+  
 
         
       case "completedQuizzes":
@@ -794,6 +962,20 @@ const renderQuizCover = () => {
     Create Quiz
     <i className="fas fa-angle-right right-arrow"></i>
   </li>
+
+
+  <li
+  className={selectedMenu === "myQuizzes" ? "gradient-active" : ""}
+  onClick={(event) => {
+    event.preventDefault();
+    fetchMyQuizzes();  // Fetch quizzes created by the connected wallet
+    setSelectedMenu("myQuizzes");
+  }}
+>
+  <i className="fas fa-user-circle"></i> My Quizzes
+  <i className="fas fa-angle-right right-arrow"></i>
+</li>
+
 
   {/* Show login link when wallet is not connected */}
   {!isWalletConnected && (
