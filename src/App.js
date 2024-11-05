@@ -38,6 +38,11 @@ const App = () => {
     );
   };
 
+  useEffect(() => {
+    setUserAnswers(Array(questions.length).fill(null));
+  }, [questions.length]); // Initialize only when questions length changes
+  
+  
 
   useEffect(() => {
     if (window.ethereum) {
@@ -161,7 +166,7 @@ const App = () => {
     try {
       const contract = await getContract();
       const allQuizzes = await contract.getAllQuizzes();
-
+  
       // Map quizzes with meaningful property names
       const mappedQuizzes = allQuizzes.map(quiz => ({
         title: quiz[0],
@@ -174,25 +179,32 @@ const App = () => {
         creator: quiz[7],
         answersInserted: quiz[8],
       }));
-
+  
       // Sort quizzes by startDate and find the one with the earliest startDate
       const sortedQuizzes = mappedQuizzes.sort((a, b) => a.startDate - b.startDate);
-      setQuizzes(sortedQuizzes);
-
       
+      const now = new Date().getTime() / 1000;
+      const updatedQuizzes = sortedQuizzes.map((quiz) => {
+        const timeRemaining = quiz.duration - (now - quiz.startDate);
+        if (timeRemaining <= 0) {
+          return { ...quiz, isCompleted: true };
+        }
+        return quiz;
+      });
+  
+      // Clear completedQuizzes to prevent duplication and update the state
+      const completed = updatedQuizzes.filter(quiz => quiz.isCompleted);
+      setCompletedQuizzes(completed);
+      setQuizzes(updatedQuizzes.filter(quiz => !quiz.isCompleted));
+  
     } catch (error) {
       console.error("Error fetching quizzes:", error);
     }
   };
   
   
-
-  useEffect(() => {
-    if (selectedMenu === "joinQuizzes") {
-      fetchAllQuizzes(); // Fetch all quizzes when navigating to the Join Quizzes page
-    }
-  }, [selectedMenu]);
   
+
   
   
   
@@ -253,7 +265,7 @@ const App = () => {
     const coverUrl = e.target.coverUrl.value;
     const description = e.target.description.value;
     const startDateTime = Math.floor(new Date(e.target.startDateTime.value).getTime() / 1000);
-    const duration = parseInt(e.target.duration.value) * 1000;
+    const duration = parseInt(e.target.duration.value) * 60;
   
     setLoading(true);
     try {
@@ -305,35 +317,23 @@ const App = () => {
       </ul>
     );
   };
-  
-  
-
-  useEffect(() => {
-    const handleQuizCompletion = () => {
-      const now = new Date().getTime();
-      const updatedQuizzes = quizzes.map((quiz) => {
-        const timeRemaining = quiz.duration - (now - quiz.startDate);
-        if (timeRemaining <= 0) {
-          return { ...quiz, isCompleted: true };
-        }
-        return quiz;
-      });
-  
-      const completed = updatedQuizzes.filter(quiz => quiz.isCompleted && !completedQuizzes.includes(quiz));
-      setCompletedQuizzes([...completedQuizzes, ...completed]);
-      setQuizzes(updatedQuizzes.filter(quiz => !quiz.isCompleted));
-    };
-  
-    const interval = setInterval(handleQuizCompletion, 1000);
-    return () => clearInterval(interval);
-  }, [quizzes, completedQuizzes]);
 
 
-  const handleSelectAnswer = (qIndex, option) => {
-    const updatedUserAnswers = [...userAnswers];
-    updatedUserAnswers[qIndex] = option;
-    setUserAnswers(updatedUserAnswers);
+
+    
+
+
+
+  const handleSelectAnswer = (qIndex, optionIndex) => {
+    setUserAnswers((prevAnswers) => {
+      const updatedAnswers = [...prevAnswers];
+      updatedAnswers[qIndex] = optionIndex; // Set selected answer as the option index
+      return updatedAnswers;
+    });
   };
+  
+  
+  
 
   const handleSubmitAnswers = async () => {
     if (!selectedQuizForDetails) {
@@ -417,7 +417,7 @@ const App = () => {
             <img src={logoURL} alt={`${title} Logo`} className="quiz-details-logo" />
             <p><strong>Number of Questions:</strong> {questionCountX}</p>
             <p><strong>Start Date:</strong> {new Date(startDateNumber).toLocaleString()}</p>
-            <p><strong>Duration:</strong> {durationInSeconds / 1000} seconds</p>
+            <p><strong>Duration:</strong> {durationInSeconds / 60} minutes</p>
           </div>
         </div>
         <button
@@ -471,7 +471,7 @@ const App = () => {
   className="input-field"
 />
         <input type="datetime-local" name="startDateTime" placeholder="Start Date and Time" required className="input-field" />
-        <input type="number" name="duration" placeholder="Duration (in seconds)" required className="input-field" />
+        <input type="number" name="duration" placeholder="Duration (in minutes)" required className="input-field" />
         <button type="submit" className="submit-btn">Create Quiz</button>
       </form>
 
@@ -603,10 +603,10 @@ const App = () => {
         <label key={oIndex} className="option-label">
           <input
             type="radio"
-            name={`question${qIndex}`}
-            value={option}
-            checked={userAnswers[qIndex] === option}
-            onChange={() => handleSelectAnswer(qIndex, option)}
+            name={`question${qIndex}`}  // Unique name per question to keep each question's options isolated
+            value={oIndex}               // Set value as the option index instead of option text
+            checked={userAnswers[qIndex] === oIndex}  // Check against the selected index in userAnswers
+            onChange={() => handleSelectAnswer(qIndex, oIndex)} // Pass option index to handleSelectAnswer
           />
           {option}
         </label>
@@ -614,6 +614,8 @@ const App = () => {
     </div>
   </div>
 ))}
+
+
 
 <div className="submit-button-container">
   <button onClick={handleSubmitAnswers} className="submit-btn">Submit Answers</button>
@@ -743,14 +745,22 @@ const renderQuizCover = () => {
   </li>
   <li
     className={selectedMenu === "joinQuizzes" ? "gradient-active" : ""}
-    onClick={() => setSelectedMenu("joinQuizzes")}
+    onClick={(event) => {
+      event.preventDefault()   
+       fetchAllQuizzes()
+       setSelectedMenu("joinQuizzes")                                    
+    }  }
   >
     <i className="fas fa-edit"></i> Join Quizzes
     <i className="fas fa-angle-right right-arrow"></i>
   </li>
   <li
     className={selectedMenu === "completedQuizzes" ? "gradient-active" : ""}
-    onClick={() => setSelectedMenu("completedQuizzes")}
+    onClick={(event) => {
+      event.preventDefault()   
+       fetchAllQuizzes()
+       setSelectedMenu("completedQuizzes")                                    
+    }  }
   >
     <i className="fas fa-check-circle"></i> Completed Quizzes
     <i className="fas fa-angle-right right-arrow"></i>
