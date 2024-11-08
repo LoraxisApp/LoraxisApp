@@ -16,6 +16,7 @@ const App = () => {
   const [questionCount, setQuestionCount] = useState(null); // Minimum set to 5
   const [questions, setQuestions] = useState([]);
   const [userAnswers, setUserAnswers] = useState([]);
+  const [userAnswersCompleted, setUserAnswersCompleted] = useState([]);
   const [score] = useState(null);
   const [leaderboard] = useState([]);
   const [upcomingQuizzes, setUpcomingQuizzes] = useState([]); // State to store upcoming quizzes
@@ -25,7 +26,8 @@ const App = () => {
   const [SelectedQuizID, setSelectedQuizID] = useState(null);
   const [myQuizzes, setMyQuizzes] = useState([]);
   const [correctAnswers, setCorrectAnswers] = useState([]);
-  
+  const [userSuccessRate, setUserSuccessRate] = useState(null);
+
 
   const LoadingOverlay = ({ isLoading }) => {
     if (!isLoading) return null; // Don't render the overlay if not loading
@@ -41,10 +43,40 @@ const App = () => {
   };
 
 
+  const handleSetUsername = async (newUsername) => {
+    if (newUsername.length > 20) {
+      alert("Username exceeds 20 character limit");
+      return;
+    }
+    setLoading(true);
+    try {
+      const contract = await getSignerContract();
+      const tx = await contract.setUsername(newUsername);
+      await tx.wait();
+      setUsername(newUsername); // Update frontend username
+      setSelectedMenu("homePage"); // Redirect to homepage or another section
+    } catch (error) {
+      console.error("Error setting username:", error);
+      alert("Failed to set username. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  
 
   const renderSubmitCorrectAnswers = () => {
+    if (!selectedQuizForDetails) return null;
+  
+    const { title, description } = selectedQuizForDetails;
+  
     return (
-      <div>
+      <div className="question-blockX">
+        {/* Display Quiz Title and Logo */}
+        <div className="quiz-header">
+          <h2>Quiz: {title} - {description}</h2>
+        </div>
+        
         <h2>Submit Correct Answers</h2>
         {questions.map((q, qIndex) => (
           <div key={qIndex} className="question-blockX">
@@ -71,6 +103,7 @@ const App = () => {
       </div>
     );
   };
+  
 
 
 
@@ -160,6 +193,16 @@ const App = () => {
         if (accounts.length > 0) {
           setAccount(accounts[0]);
           setIsWalletConnected(true);
+          const fetchUsername = async () => {
+            try {
+              const contract = await getContract();
+              const userUsername = await contract.usernames(accounts[0]);
+              setUsername(userUsername || "");
+            } catch (error) {
+              console.error("Error fetching username:", error);
+            }
+          };
+          fetchUsername();
         } else {
           setAccount(null);
           setIsWalletConnected(false);
@@ -175,6 +218,16 @@ const App = () => {
           // Update the account when changed
           setAccount(accounts[0]);
           setIsWalletConnected(true);
+          const fetchUsername = async () => {
+            try {
+              const contract = await getContract();
+              const userUsername = await contract.usernames(accounts[0]);
+              setUsername(userUsername || "");
+            } catch (error) {
+              console.error("Error fetching username:", error);
+            }
+          };
+          fetchUsername();
           localStorage.setItem("account", accounts[0]);
           localStorage.setItem("isWalletConnected", "true");
         }
@@ -479,6 +532,142 @@ const App = () => {
       setLoading(false); // Hide loading spinner after transaction
     }
   };
+
+
+
+  const renderCompletedQuizzes = () => {
+    if (completedQuizzes.length === 0) {
+      return <p>No completed quizzes available.</p>;
+    }
+  
+    return (
+      <div>
+        <h2>Completed Quizzes</h2>
+        <ul className="quizzes-listAll">
+          {completedQuizzes.map((quiz, index) => (
+            <li key={index} className="quiz-itemAll">
+              <div className="quiz-content-containerAll">
+                <div className="quiz-logo-containerAll">
+                  <img src={quiz.logoURL} alt="Quiz Logo" className="quiz-logoAll" />
+                </div>
+                <div className="quiz-detailsAll">
+                  <span className="quiz-titleAll">{quiz.title}</span>
+                  <span className="quiz-descriptionAll">{quiz.description}</span>
+                  <span className="quiz-questionsAll">{quiz.questionCount} questions</span>
+                </div>
+                <div className="quiz-actionAll">
+                  <button 
+                    className="join-quiz-btnAll"
+                    onClick={() => handleCompletedQuizClick(quiz, index)}
+                  >
+                    See Details
+                  </button>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  };
+  
+  const renderCompletedQuizDetails = () => {
+    console.log("Rendering with userAnswers:", userAnswers); // Debugging line
+
+    if (!selectedQuizForDetails) return null;
+
+    const { title, description, logoURL, coverURL, questionCount, startDate, duration, answersInserted } = selectedQuizForDetails;
+    const startDateFormatted = new Date(Number(startDate) * 1000).toLocaleString();
+    const durationInMinutes = duration / 60;
+
+    return (
+        <div className="quiz-details-page">
+            <div className="quiz-details-header">
+                <img src={coverURL} alt={`${title} Cover`} className="quiz-details-cover" />
+                <div className="quiz-details-header-content">
+                    <h2 className="quiz-details-title">{title}</h2>
+                    <p className="quiz-details-description">{description}</p>
+                </div>
+            </div>
+            <div className="quiz-details-body">
+                <div className="quiz-detail-item">
+                    <img src={logoURL} alt={`${title} Logo`} className="quiz-details-logo" />
+                    <p><strong>Number of Questions:</strong> {questionCount}</p>
+                    <p><strong>Start Date:</strong> {startDateFormatted}</p>
+                    <p><strong>Duration:</strong> {durationInMinutes} minutes</p>
+                    <p><strong>Your Success Rate:</strong> {userSuccessRate}%</p> {/* Display Success Rate */}
+                </div>
+            </div>
+
+            {/* Render Questions, User Answers, and Correct Answers */}
+            <div className="question-section">
+                {questions.map((q, qIndex) => (
+                    <div key={qIndex} className="question-blockX">
+                        <h4>{q.question}</h4>
+                        <div className="options-container">
+                            {q.options.map((option, oIndex) => (
+                                <p key={oIndex} className="option-label">{option}</p>
+                            ))}
+                        </div>
+                        {/* Display User Answer */}
+                        <p className="user-answer">
+                            Your Answer: {userAnswersCompleted[qIndex] !== undefined ? q.options[userAnswersCompleted[qIndex]] : "Not Selected"}
+                        </p>
+                        {/* Display Correct Answer */}
+                        {answersInserted && correctAnswers.length > 0 ? (
+                            <p className="correct-answer">Correct Answer: {q.options[correctAnswers[qIndex]]}</p>
+                        ) : (
+                            <p className="not-inserted">Correct answers have not been inserted by the Quiz Creator yet.</p>
+                        )}
+                    </div>
+                ))}
+            </div>
+
+            <button onClick={() => setSelectedMenu("completedQuizzes")} className="back-btn">
+                Back to Completed Quizzes
+            </button>
+        </div>
+    );
+};
+
+
+
+  
+  
+  
+
+
+const handleCompletedQuizClick = async (quiz, index) => {
+  try {
+      const contract = await getContract();
+      const questions = await contract.getQuizQuestions(index);
+
+      const answers = await contract.getQuizAnswers(index);
+      const userAnswerData = answers.find(answer => formatAddress(answer.user) === formatAddress(account));
+      const userAnswers = userAnswerData ? userAnswerData.answers.map(Number) : [];
+
+      const correctAnswers = await contract.getCorrectAnswers(index);
+      const formattedCorrectAnswers = correctAnswers ? correctAnswers.map(Number) : [];
+
+      // Fetch user success rate
+      const successRate = await contract.getUserSuccessRate(index, account);
+      setUserSuccessRate(Number(successRate)); // Convert BigNumber to number
+
+      setQuestions(questions); 
+      setUserAnswersCompleted(userAnswers); 
+      setCorrectAnswers(formattedCorrectAnswers); 
+      setSelectedQuizForDetails(quiz); 
+      setSelectedQuizID(index); 
+      setSelectedMenu("completedQuizDetails"); 
+  } catch (error) {
+      console.error("Error fetching completed quiz details:", error);
+  }
+};
+
+
+  
+  
+  
   
   
 
@@ -510,6 +699,14 @@ const renderQuizDetails = () => {
 
   const isQuizCreator = formatAddress(account) === formatAddress(creator);
 
+  const handleJoinQuiz = () => {
+    if (!username) {
+      alert("Please set a username to join the quiz.");
+    } else {
+      setSelectedMenu("answerQuiz");
+    }
+  };
+
   return (
     <div className="quiz-details-page">
       <div className="quiz-details-header">
@@ -527,13 +724,15 @@ const renderQuizDetails = () => {
           <p><strong>Duration:</strong> {duration / 60} minutes</p>
         </div>
       </div>
+
       <button
-        onClick={() => setSelectedMenu("answerQuiz")}
-        disabled={!isQuizStarted || isQuizCompleted}  // Disable if quiz hasn't started or has completed
+        onClick={handleJoinQuiz}
+        disabled={!isQuizStarted || isQuizCompleted}
         className={`join-quiz-btn ${!isQuizStarted || isQuizCompleted ? "disabled-btn" : ""}`}
       >
         Join This Quiz
       </button>
+
     <p>
       {isQuizCreator && (
         <button
@@ -631,6 +830,26 @@ const renderQuizDetails = () => {
 
           </div>
         );
+
+        case "setUsername":
+          return (
+            <div>
+              <h2>Set Username</h2>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleSetUsername(e.target.username.value);
+                }}
+              >
+                <input type="text" name="username" placeholder="Enter Username" required maxLength="20" />
+                <button type="submit">Save Username</button>
+              </form>
+              <h3>Warning: Username can be set only 1 time and can not be changed in the future !</h3>
+            </div>
+          );
+        
+
+
         case "joinQuizzes":
   return (
     <div>
@@ -731,22 +950,10 @@ const renderQuizDetails = () => {
   
 
         
-      case "completedQuizzes":
-        return (
-          <div>
-            <h2>Completed Quizzes</h2>
-            {completedQuizzes.length > 0 ? (
-              completedQuizzes.map((quiz, index) => (
-                <div key={index} className="quiz-item">
-                  <h3>{quiz.title}</h3>
-                  <p>Quiz completed and no longer available for participation.</p>
-                </div>
-              ))
-            ) : (
-              <p>No completed quizzes available.</p>
-            )}
-          </div>
-        );
+    case "completedQuizzes":
+      return renderCompletedQuizzes();
+    case "completedQuizDetails":
+      return renderCompletedQuizDetails();
         case "answerQuiz":
           const { title, logoURL, startDate, duration } = selectedQuizForDetails || {};
           const startDateFormatted = new Date(Number(startDate) * 1000).toLocaleString(); // Format start date
@@ -991,17 +1198,26 @@ const renderQuizCover = () => {
 
   {/* Show active wallet address and username when wallet is connected */}
   {isWalletConnected && (
-    <>
-      <li>
-        <i className="fas fa-wallet"></i> {/* Icon for Active Wallet Address */}
-        <span>Active Wallet Address: {formatAddress(account)}</span>
-      </li>
-      <li>
-        <i className="fas fa-user"></i> {/* Icon for Active Username */}
-        <span>Active Username: {username}</span>
-      </li>
-    </>
-  )}
+  <>
+    <li>
+      <i className="fas fa-wallet"></i>
+      <span>Wallet Address: {formatAddress(account)}</span>
+    </li>
+    <li>
+      <i className="fas fa-user"></i>
+      <span>
+        Username: {username ? (
+          username
+        ) : (
+          <button className="username-btn" onClick={() => setSelectedMenu("setUsername")}>
+            No Username, Get One
+          </button>
+        )}
+      </span>
+    </li>
+  </>
+)}
+
 </ul>
 
 <div className="loraxis-card">

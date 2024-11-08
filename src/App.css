@@ -639,6 +639,31 @@ p {
 }
 
 
+.username-btn {
+  background: linear-gradient(45deg, #ff6b6b, #f06595, #7b2cbf);
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: bold;
+  transition: background-color 0.3s ease, transform 0.3s ease; /* Smooth transition for hover effects */
+  margin: 0px 3px;
+}
+
+.username-btn:hover {
+  background: linear-gradient(45deg, #f06595, #7b2cbf, #ff6b6b); /* Slight color change on hover */
+  transform: scale(1.05); /* Slight zoom effect on hover */
+}
+
+.username-btn:active {
+  background: linear-gradient(45deg, #7b2cbf, #ff6b6b, #f06595); /* Color transition for active state */
+  transform: scale(0.95); /* Slight shrink effect when clicked */
+}
+
+
+
 /* Create Quiz Form Styles */
 .create-quiz-form {
   background-color: #333;
